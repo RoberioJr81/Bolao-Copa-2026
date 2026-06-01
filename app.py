@@ -30,32 +30,15 @@ st.title("🏆 Bolão Copa do Mundo 2026")
 # FUNÇÃO CARREGAR JSON
 # ============================================================
 
-
 def carregar_json(nome):
 
-
-    caminho = nome
-
-    )
-
-
     with open(
-
-        caminho,
-
+        nome,
         "r",
-
         encoding="utf-8"
-
     ) as arquivo:
 
-
-        return json.load(
-
-            arquivo
-
-        )
-
+        return json.load(arquivo)
 
 
 # ============================================================

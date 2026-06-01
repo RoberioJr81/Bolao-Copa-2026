@@ -3,6 +3,8 @@ import pandas as pd
 import json
 import os
 
+from motor import executar_motor
+
 
 # ============================================================
 # CONFIGURAÇÃO
@@ -16,16 +18,44 @@ st.set_page_config(
 
 
 # ============================================================
+# EXECUTA MOTOR OFICIAL
+# ============================================================
+
+with st.spinner("🔄 Atualizando dados do bolão..."):
+
+    executar_motor()
+
+
+
+# ============================================================
 # FUNÇÕES
 # ============================================================
 
 def carregar_json(nome):
 
-    if not os.path.exists(nome):
+
+    # primeiro tenta dentro da pasta publicacao
+
+    caminho = os.path.join(
+        "publicacao",
+        nome
+    )
+
+
+    if not os.path.exists(caminho):
+
+        # compatibilidade com arquivos antigos na raiz
+
+        caminho = nome
+
+
+    if not os.path.exists(caminho):
+
         return None
 
+
     with open(
-        nome,
+        caminho,
         "r",
         encoding="utf-8"
     ) as f:
@@ -33,19 +63,24 @@ def carregar_json(nome):
         return json.load(f)
 
 
+
 def carregar_df(nome):
+
 
     dados = carregar_json(nome)
 
+
     if dados is None:
+
         return pd.DataFrame()
+
 
     return pd.DataFrame(dados)
 
 
 
 # ============================================================
-# CARREGAMENTO
+# CARREGAMENTO DOS DADOS
 # ============================================================
 
 ranking = carregar_df(
@@ -68,14 +103,27 @@ site = carregar_json(
 )
 
 
+
 if site is None:
 
+
     site = {
-        "titulo": "🏆 Bolão Copa 2026",
-        "participantes": len(ranking),
-        "jogos": len(jogos),
-        "teto": 1797,
-        "status": ""
+
+        "titulo":
+        "🏆 Bolão Copa do Mundo 2026",
+
+        "participantes":
+        len(ranking),
+
+        "jogos":
+        len(jogos),
+
+        "teto":
+        1797,
+
+        "status":
+        "Atualizado automaticamente"
+
     }
 
 
@@ -84,14 +132,13 @@ if site is None:
 # CABEÇALHO
 # ============================================================
 
-
 st.title(
     site["titulo"]
 )
 
 
 st.caption(
-    "Sistema oficial de acompanhamento"
+    "Sistema oficial com atualização automática pelo motor"
 )
 
 
@@ -99,36 +146,53 @@ st.caption(
 c1, c2, c3, c4 = st.columns(4)
 
 
+
 with c1:
 
     st.metric(
+
         "👥 Participantes",
+
         site["participantes"]
+
     )
+
 
 
 with c2:
 
     st.metric(
+
         "⚽ Jogos",
+
         site["jogos"]
+
     )
+
 
 
 with c3:
 
     st.metric(
+
         "🎯 Teto máximo",
+
         str(site["teto"]) + " pts"
+
     )
+
 
 
 with c4:
 
     st.metric(
+
         "📌 Status",
+
         site["status"]
+
     )
+
 
 
 st.divider()
@@ -159,7 +223,7 @@ aba_inicio, aba_ranking, aba_premios, aba_jogos = st.tabs(
 
 
 # ============================================================
-# INÍCIO
+# ABA INÍCIO
 # ============================================================
 
 
@@ -167,30 +231,36 @@ with aba_inicio:
 
 
     st.subheader(
-        "Bem-vindo ao Bolão Copa do Mundo 2026"
+
+        "🏆 Bolão Copa do Mundo 2026"
+
     )
 
 
     st.write(
+
         """
-        Acompanhe aqui a classificação oficial,
-        premiações e evolução dos participantes.
+
+        Sistema automático de acompanhamento:
+
+        - atualização pelo Google Sheets;
+        - cálculo pelo motor oficial;
+        - publicação automática do ranking.
+
         """
+
     )
 
 
     if not ranking.empty:
 
 
-        maior = ranking["TOTAL"].max()
-
-
-        if maior == 0:
+        if ranking["TOTAL"].max() == 0:
 
 
             st.info(
 
-                "⏳ Copa ainda não iniciada. Ranking aguardando os primeiros jogos."
+                "⏳ Copa ainda não iniciada. Ranking definido pelo critério de desempate."
 
             )
 
@@ -210,7 +280,7 @@ with aba_inicio:
 
 
 # ============================================================
-# RANKING
+# ABA RANKING
 # ============================================================
 
 
@@ -218,7 +288,16 @@ with aba_ranking:
 
 
     st.subheader(
+
         "🏆 Ranking Geral Oficial"
+
+    )
+
+
+    st.info(
+
+        "Critério de desempate aplicado automaticamente conforme regulamento."
+
     )
 
 
@@ -235,7 +314,7 @@ with aba_ranking:
 
 
 # ============================================================
-# PREMIAÇÃO
+# ABA PREMIAÇÃO
 # ============================================================
 
 
@@ -243,16 +322,18 @@ with aba_premios:
 
 
     st.subheader(
-        "🥇 Premiação da Fase de Grupos"
+
+        "🥇 Premiação"
+
     )
 
 
     if premiacao.empty:
 
 
-        st.warning(
+        st.info(
 
-            "Premiação não carregada"
+            "⏳ Premiação aguardando início da competição."
 
         )
 
@@ -260,43 +341,20 @@ with aba_premios:
     else:
 
 
-        coluna = (
+        st.dataframe(
 
-            "TOTAL PREMIAÇÃO FASE DE GRUPOS"
+            premiacao,
+
+            hide_index=True,
+
+            use_container_width=True
 
         )
 
 
-        if (
-            coluna in premiacao.columns
-            and premiacao[coluna].max() == 0
-        ):
-
-
-            st.info(
-
-                "⏳ Premiação em disputa. Será definida após a fase de grupos."
-
-            )
-
-
-        else:
-
-
-            st.dataframe(
-
-                premiacao,
-
-                hide_index=True,
-
-                use_container_width=True
-
-            )
-
-
 
 # ============================================================
-# JOGOS
+# ABA JOGOS
 # ============================================================
 
 
@@ -304,7 +362,9 @@ with aba_jogos:
 
 
     st.subheader(
+
         "⚽ Jogos da Copa"
+
     )
 
 
@@ -313,7 +373,7 @@ with aba_jogos:
 
         st.warning(
 
-            "Jogos não disponíveis"
+            "Jogos ainda não disponíveis."
 
         )
 
@@ -321,28 +381,28 @@ with aba_jogos:
     else:
 
 
-        fases = jogos["Fase"].unique()
+        if "Fase" in jogos.columns:
 
 
-        escolha = st.selectbox(
+            fase = st.selectbox(
 
-            "Filtrar fase",
+                "Filtrar fase",
 
-            fases
+                jogos["Fase"].unique()
 
-        )
+            )
 
 
-        tabela = jogos[
+            jogos = jogos[
 
-            jogos["Fase"] == escolha
+                jogos["Fase"] == fase
 
-        ]
+            ]
 
 
         st.dataframe(
 
-            tabela,
+            jogos,
 
             hide_index=True,
 
@@ -356,12 +416,11 @@ with aba_jogos:
 # RODAPÉ
 # ============================================================
 
-
 st.divider()
 
 
 st.caption(
 
-    "🏆 Bolão Copa do Mundo 2026"
+    "🏆 Bolão Copa 2026 — Motor automático ativo"
 
 )

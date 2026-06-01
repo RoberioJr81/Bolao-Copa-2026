@@ -1,33 +1,54 @@
 
-
-# ============================================================
-# APP BOLÃO COPA 2026
-# RENDER / STREAMLIT
-# ============================================================
-
-
 import streamlit as st
 import pandas as pd
 import json
-import os
-
-
-st.set_page_config(
-
-    page_title="Bolão Copa do Mundo 2026",
-
-    layout="wide"
-
-)
-
-
-
-st.title("🏆 Bolão Copa do Mundo 2026")
-
 
 
 # ============================================================
-# FUNÇÃO CARREGAR JSON
+# CONFIGURAÇÃO DA PÁGINA
+# ============================================================
+
+st.set_page_config(
+    page_title="Bolão Copa 2026",
+    page_icon="🏆",
+    layout="wide"
+)
+
+
+# ============================================================
+# ESTILO
+# ============================================================
+
+st.markdown(
+    """
+    <style>
+
+    .main {
+        padding-top: 1rem;
+    }
+
+    h1 {
+        text-align: center;
+        color: #0B3D91;
+        font-size: 42px;
+    }
+
+    h2, h3 {
+        color: #1F2937;
+    }
+
+    [data-testid="stMetricValue"] {
+        font-size: 28px;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# ============================================================
+# FUNÇÕES
 # ============================================================
 
 def carregar_json(nome):
@@ -41,124 +62,134 @@ def carregar_json(nome):
         return json.load(arquivo)
 
 
+def tabela(dados):
+
+    return pd.DataFrame(dados)
+
+
+
 # ============================================================
-# CARREGAMENTO
+# CARREGAMENTO DOS DADOS
 # ============================================================
 
+ranking = tabela(
+    carregar_json("ranking_geral.json")
+)
 
-try:
+
+fase_grupos = tabela(
+    carregar_json("ranking_fase_grupos.json")
+)
 
 
-    ranking = pd.DataFrame(
+estatisticas = tabela(
+    carregar_json("estatisticas_bolao.json")
+)
 
-        carregar_json(
 
-            "ranking_geral.json"
 
+# ============================================================
+# CABEÇALHO
+# ============================================================
+
+st.title("🏆 Bolão Copa do Mundo 2026")
+
+
+st.divider()
+
+
+
+# ============================================================
+# CARDS DE ESTATÍSTICAS
+# ============================================================
+
+st.subheader("📊 Estatísticas Gerais")
+
+
+col1, col2, col3, col4 = st.columns(4)
+
+
+with col1:
+    st.metric(
+        "Participantes",
+        int(estatisticas["Participantes"][0])
+    )
+
+
+with col2:
+    st.metric(
+        "Maior Pontuação",
+        int(estatisticas["Maior Pontuação"][0])
+    )
+
+
+with col3:
+    st.metric(
+        "Média",
+        round(
+            float(estatisticas["Média Pontos"][0]),
+            2
         )
-
     )
 
 
-    grupos = pd.DataFrame(
-
-        carregar_json(
-
-            "ranking_fase_grupos.json"
-
-        )
-
+with col4:
+    st.metric(
+        "Teto Possível",
+        "1797 pts"
     )
 
 
-    estatisticas = pd.DataFrame(
-
-        carregar_json(
-
-            "estatisticas_bolao.json"
-
-        )
-
-    )
+st.info(
+    "👑 Líder(es): "
+    + str(estatisticas["Líder(es)"][0])
+)
 
 
 
-    # --------------------------------------------------------
-    # ESTATÍSTICAS
-    # --------------------------------------------------------
+# ============================================================
+# RANKING GERAL
+# ============================================================
+
+st.divider()
 
 
-    st.subheader("📊 Estatísticas")
+st.subheader("🏆 Classificação Geral")
 
 
-    st.dataframe(
-
-        estatisticas,
-
-        use_container_width=True
-
-    )
-
-
-
-    # --------------------------------------------------------
-    # RANKING GERAL
-    # --------------------------------------------------------
-
-
-    st.subheader("🏆 Ranking Geral")
-
-
-    st.dataframe(
-
-        ranking,
-
-        use_container_width=True,
-
-        hide_index=True
-
-    )
+st.dataframe(
+    ranking,
+    hide_index=True,
+    use_container_width=True
+)
 
 
 
-    # --------------------------------------------------------
-    # PREMIAÇÃO GRUPOS
-    # --------------------------------------------------------
+# ============================================================
+# PREMIAÇÃO FASE DE GRUPOS
+# ============================================================
+
+st.divider()
 
 
-    st.subheader(
-
-        "🥇 Premiação da Fase de Grupos"
-
-    )
+st.subheader("🥇 Premiação da Fase de Grupos")
 
 
-    st.dataframe(
-
-        grupos,
-
-        use_container_width=True,
-
-        hide_index=True
-
-    )
+st.dataframe(
+    fase_grupos,
+    hide_index=True,
+    use_container_width=True
+)
 
 
 
-except Exception as erro:
+# ============================================================
+# RODAPÉ
+# ============================================================
+
+st.divider()
 
 
-    st.error(
-
-        "Erro ao carregar dados do bolão"
-
-    )
-
-
-    st.exception(
-
-        erro
-
-    )
-
-
+st.caption(
+    "Sistema Bolão Copa 2026 • Atualização automática via Render"
+)

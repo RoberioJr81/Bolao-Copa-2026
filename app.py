@@ -34,11 +34,7 @@ st.title("🏆 Bolão Copa do Mundo 2026")
 def carregar_json(nome):
 
 
-    caminho = os.path.join(
-
-        "publicacao",
-
-        nome
+    caminho = nome
 
     )
 

@@ -1,0 +1,19 @@
+
+
+Bolão Copa do Mundo 2026
+
+Versão:
+FIFA PREMIUM v1.0
+
+Gerado:
+2026-06-01 15:25:53.498918
+
+Arquitetura:
+Google Sheets
+↓
+Tratamento Python
+↓
+Streamlit
+↓
+Render
+

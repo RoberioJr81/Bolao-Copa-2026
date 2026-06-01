@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
+import os
 
 
 # ============================================================
@@ -18,10 +19,13 @@ st.set_page_config(
 # FUNÇÕES
 # ============================================================
 
-def carregar_json(arquivo):
+def carregar_json(nome):
+
+    if not os.path.exists(nome):
+        return None
 
     with open(
-        arquivo,
+        nome,
         "r",
         encoding="utf-8"
     ) as f:
@@ -29,26 +33,50 @@ def carregar_json(arquivo):
         return json.load(f)
 
 
+def carregar_df(nome):
 
-def carregar_tabela(arquivo):
+    dados = carregar_json(nome)
 
-    return pd.DataFrame(
-        carregar_json(arquivo)
-    )
+    if dados is None:
+        return pd.DataFrame()
+
+    return pd.DataFrame(dados)
+
 
 
 # ============================================================
-# CARREGAR DADOS
+# CARREGAMENTO
 # ============================================================
 
-ranking = carregar_tabela(
+ranking = carregar_df(
     "ranking_geral.json"
 )
 
 
-fase_grupos = carregar_tabela(
-    "ranking_fase_grupos.json"
+premiacao = carregar_df(
+    "premiacao_fase_grupos.json"
 )
+
+
+jogos = carregar_df(
+    "jogos.json"
+)
+
+
+site = carregar_json(
+    "site.json"
+)
+
+
+if site is None:
+
+    site = {
+        "titulo": "🏆 Bolão Copa 2026",
+        "participantes": len(ranking),
+        "jogos": len(jogos),
+        "teto": 1797,
+        "status": ""
+    }
 
 
 
@@ -56,14 +84,51 @@ fase_grupos = carregar_tabela(
 # CABEÇALHO
 # ============================================================
 
+
 st.title(
-    "🏆 Bolão Copa do Mundo 2026"
+    site["titulo"]
 )
 
 
 st.caption(
     "Sistema oficial de acompanhamento"
 )
+
+
+
+c1, c2, c3, c4 = st.columns(4)
+
+
+with c1:
+
+    st.metric(
+        "👥 Participantes",
+        site["participantes"]
+    )
+
+
+with c2:
+
+    st.metric(
+        "⚽ Jogos",
+        site["jogos"]
+    )
+
+
+with c3:
+
+    st.metric(
+        "🎯 Teto máximo",
+        str(site["teto"]) + " pts"
+    )
+
+
+with c4:
+
+    st.metric(
+        "📌 Status",
+        site["status"]
+    )
 
 
 st.divider()
@@ -74,11 +139,14 @@ st.divider()
 # ABAS
 # ============================================================
 
-aba_ranking, aba_premios, aba_jogos = st.tabs(
+
+aba_inicio, aba_ranking, aba_premios, aba_jogos = st.tabs(
 
     [
 
-        "🏆 Ranking Geral",
+        "🏠 Início",
+
+        "🏆 Ranking Oficial",
 
         "🥇 Premiações",
 
@@ -91,7 +159,58 @@ aba_ranking, aba_premios, aba_jogos = st.tabs(
 
 
 # ============================================================
-# ABA RANKING
+# INÍCIO
+# ============================================================
+
+
+with aba_inicio:
+
+
+    st.subheader(
+        "Bem-vindo ao Bolão Copa do Mundo 2026"
+    )
+
+
+    st.write(
+        """
+        Acompanhe aqui a classificação oficial,
+        premiações e evolução dos participantes.
+        """
+    )
+
+
+    if not ranking.empty:
+
+
+        maior = ranking["TOTAL"].max()
+
+
+        if maior == 0:
+
+
+            st.info(
+
+                "⏳ Copa ainda não iniciada. Ranking aguardando os primeiros jogos."
+
+            )
+
+
+        else:
+
+
+            lider = ranking.iloc[0]
+
+
+            st.success(
+
+                f"🏆 Líder atual: {lider['Participante']}"
+
+            )
+
+
+
+# ============================================================
+# RANKING
 # ============================================================
 
 
@@ -99,7 +218,7 @@ with aba_ranking:
 
 
     st.subheader(
-        "🏆 Classificação Geral"
+        "🏆 Ranking Geral Oficial"
     )
 
 
@@ -116,7 +235,7 @@ with aba_ranking:
 
 
 # ============================================================
-# ABA PREMIAÇÕES
+# PREMIAÇÃO
 # ============================================================
 
 
@@ -124,75 +243,60 @@ with aba_premios:
 
 
     st.subheader(
-        "🥇 Premiação — Fase de Grupos"
+        "🥇 Premiação da Fase de Grupos"
     )
 
 
-    top = fase_grupos.head(3)
+    if premiacao.empty:
 
 
-    colunas = st.columns(
-        len(top)
-    )
+        st.warning(
+
+            "Premiação não carregada"
+
+        )
 
 
-    medalhas = [
-
-        "🥇",
-
-        "🥈",
-
-        "🥉"
-
-    ]
+    else:
 
 
-    for i, (_, linha) in enumerate(
-        top.iterrows()
-    ):
+        coluna = (
+
+            "TOTAL PREMIAÇÃO FASE DE GRUPOS"
+
+        )
 
 
-        with colunas[i]:
+        if (
+            coluna in premiacao.columns
+            and premiacao[coluna].max() == 0
+        ):
 
 
-            st.metric(
+            st.info(
 
-                medalhas[i] + " " + str(
-                    linha["Participante"]
-                ),
-
-                str(
-                    linha[
-                        "TOTAL PREMIAÇÃO FASE DE GRUPOS"
-                    ]
-                )
-                + " pts"
+                "⏳ Premiação em disputa. Será definida após a fase de grupos."
 
             )
 
 
-    st.divider()
+        else:
 
 
-    st.write(
-        "Classificação completa da premiação:"
-    )
+            st.dataframe(
 
+                premiacao,
 
-    st.dataframe(
+                hide_index=True,
 
-        fase_grupos,
+                use_container_width=True
 
-        hide_index=True,
-
-        use_container_width=True
-
-    )
+            )
 
 
 
 # ============================================================
-# ABA JOGOS
+# JOGOS
 # ============================================================
 
 
@@ -204,11 +308,47 @@ with aba_jogos:
     )
 
 
-    st.info(
+    if jogos.empty:
 
-        "Tabela de jogos será habilitada na próxima atualização."
 
-    )
+        st.warning(
+
+            "Jogos não disponíveis"
+
+        )
+
+
+    else:
+
+
+        fases = jogos["Fase"].unique()
+
+
+        escolha = st.selectbox(
+
+            "Filtrar fase",
+
+            fases
+
+        )
+
+
+        tabela = jogos[
+
+            jogos["Fase"] == escolha
+
+        ]
+
+
+        st.dataframe(
+
+            tabela,
+
+            hide_index=True,
+
+            use_container_width=True
+
+        )
 
 
 
@@ -222,6 +362,6 @@ st.divider()
 
 st.caption(
 
-    "Bolão Copa 2026"
+    "🏆 Bolão Copa do Mundo 2026"
 
 )

@@ -1,0 +1,5 @@
+[motor.py](https://github.com/user-attachments/files/28480729/motor.py)
+[motor_backup_colab.py](https://github.com/user-attachments/files/28480730/motor_backup_colab.py)[app.py](https://github.com/user-attachments/files/28480734/app.py)
+[ranking_geral.json](https://github.com/user-attachments/files/28480733/ranking_geral.json)
+[estatisticas_bolao.json](https://github.com/user-attachments/files/28480732/estatisticas_bolao.json)
+[requirements.txt](https://github.com/user-attachments/files/28480731/requirements.txt)

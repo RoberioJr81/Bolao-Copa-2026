@@ -1,5 +1,9 @@
 #!/bin/bash
-# Roda o motor uma vez para buscar os dados
-python motor.py
-# Inicia o site e mantém o processo vivo
-streamlit run app.py --server.port=$PORT --server.address=0.0.0.0
+
+# 1. Executa o motor em background para ele não "prender" o terminal
+# O 'disown' garante que ele continue a rodar independentemente
+python3 motor.py &
+
+# 2. Executa o Streamlit no comando principal (o Render precisa disto)
+# Adicionamos --server.headless=true para evitar problemas com interfaces
+streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true

@@ -1,18 +1,15 @@
 # ==============================================================================
-# 🏆 BOLÃO COPA DO MUNDO 2026
-# FIFA PREMIUM VISUAL v3.2.1
+# 🔍 BOLÃO COPA 2026
+# APP DE AUDITORIA DO FLUXO
 #
-# Compatível com:
-# MOTOR OFICIAL v8.1
-#
-# O APP NÃO CALCULA RESULTADOS
-# Apenas apresenta JSONs gerados pelo motor
+# Google Sheets → motor.py → JSON → app.py
 # ==============================================================================
-
 
 import streamlit as st
 import pandas as pd
 import json
+import os
+import traceback
 
 
 # ==============================================================================
@@ -20,17 +17,272 @@ import json
 # ==============================================================================
 
 st.set_page_config(
-    page_title="🏆 Bolão Copa 2026",
-    page_icon="🏆",
+    page_title="Auditoria Bolão 2026",
+    page_icon="🔍",
     layout="wide"
 )
 
 
+st.title("🔍 Auditoria do Sistema Bolão Copa 2026")
+
+st.write(
+    "Verificando fluxo: Google Sheets → motor.py → JSON → app.py"
+)
+
+st.divider()
+
+
 # ==============================================================================
-# FUNÇÕES
+# 1. TESTE EXISTÊNCIA DO MOTOR
 # ==============================================================================
 
-def carregar_json(nome, padrao):
+st.header("1️⃣ Verificação do motor.py")
+
+
+if os.path.exists("motor.py"):
+
+    st.success(
+        "✅ Arquivo motor.py encontrado"
+    )
+
+
+else:
+
+    st.error(
+        "❌ motor.py NÃO encontrado"
+    )
+
+
+
+# ==============================================================================
+# 2. EXECUÇÃO DO MOTOR
+# ==============================================================================
+
+st.header("2️⃣ Execução do Motor")
+
+
+try:
+
+    from motor import rodar_motor
+
+
+    st.info(
+        "Executando rodar_motor()..."
+    )
+
+
+    rodar_motor()
+
+
+    st.success(
+        "✅ Motor executado sem erro"
+    )
+
+
+except Exception as erro:
+
+
+    st.error(
+        "❌ Erro durante execução do motor"
+    )
+
+
+    st.code(
+        str(erro)
+    )
+
+
+    st.code(
+        traceback.format_exc()
+    )
+
+
+
+st.divider()
+
+
+
+# ==============================================================================
+# 3. AUDITORIA DOS JSONS
+# ==============================================================================
+
+st.header("3️⃣ Verificação dos JSONs")
+
+
+arquivos_json = [
+
+    "ranking_geral.json",
+
+    "ranking_fase_grupos.json",
+
+    "participantes.json",
+
+    "jogos.json",
+
+    "palpites.json",
+
+    "premiacao.json",
+
+    "estatisticas_bolao.json",
+
+    "auditoria.json"
+
+]
+
+
+resultado = []
+
+
+for arquivo in arquivos_json:
+
+
+    existe = os.path.exists(
+        arquivo
+    )
+
+
+    tamanho = (
+
+        os.path.getsize(
+            arquivo
+        )
+
+        if existe
+
+        else
+
+        0
+
+    )
+
+
+    resultado.append(
+
+        {
+
+            "Arquivo": arquivo,
+
+            "Existe": existe,
+
+            "Tamanho bytes": tamanho
+
+        }
+
+    )
+
+
+st.dataframe(
+
+    pd.DataFrame(resultado),
+
+    width="stretch"
+
+)
+
+
+
+st.divider()
+
+
+
+# ==============================================================================
+# 4. CONTEÚDO DOS JSONS
+# ==============================================================================
+
+st.header("4️⃣ Amostra do conteúdo gerado")
+
+
+for arquivo in arquivos_json:
+
+
+    st.subheader(
+        arquivo
+    )
+
+
+    if os.path.exists(
+        arquivo
+    ):
+
+
+        try:
+
+
+            with open(
+                arquivo,
+                "r",
+                encoding="utf-8"
+            ) as f:
+
+
+                dados = json.load(
+                    f
+                )
+
+
+            st.write(
+                "Tipo:",
+                type(dados).__name__
+            )
+
+
+            if isinstance(
+                dados,
+                list
+            ):
+
+
+                st.write(
+                    "Quantidade registros:",
+                    len(dados)
+                )
+
+
+                st.json(
+                    dados[:2]
+                )
+
+
+            elif isinstance(
+                dados,
+                dict
+            ):
+
+
+                st.json(
+                    dados
+                )
+
+
+        except Exception as erro:
+
+
+            st.error(
+                erro
+            )
+
+
+    else:
+
+
+        st.warning(
+            "Arquivo não encontrado"
+        )
+
+
+
+st.divider()
+
+
+
+# ==============================================================================
+# 5. TESTE RÁPIDO DO RESULTADO ESPERADO
+# ==============================================================================
+
+st.header("5️⃣ Resultado esperado do Bolão")
+
+
+def abrir(nome, padrao):
 
     try:
 
@@ -38,495 +290,98 @@ def carregar_json(nome, padrao):
             nome,
             "r",
             encoding="utf-8"
-        ) as arquivo:
+        ) as f:
 
-            dados = json.load(arquivo)
+            return json.load(f)
 
-
-        # garante tipo correto
-
-        if isinstance(padrao, dict):
-
-            if isinstance(dados, dict):
-                return dados
-
-            return padrao
-
-
-        if isinstance(padrao, list):
-
-            if isinstance(dados, list):
-                return dados
-
-            return padrao
-
-
-        return dados
-
-
-    except Exception as erro:
-
-        print(
-            f"Falha carregando {nome}: {erro}"
-        )
+    except:
 
         return padrao
 
 
 
-def moeda(valor):
+estatisticas = abrir(
 
-    try:
-
-        return (
-            f"R$ {float(valor):,.2f}"
-            .replace(",", "X")
-            .replace(".", ",")
-            .replace("X", ".")
-        )
-
-    except:
-
-        return "R$ 0,00"
-
-
-
-def mostrar_tabela(dados):
-
-    df = pd.DataFrame(dados)
-
-    st.dataframe(
-        df,
-        hide_index=True,
-        use_container_width=True
-    )
-
-
-# ==============================================================================
-# CARREGAMENTO DOS JSONS OFICIAIS
-# ==============================================================================
-
-
-ranking = carregar_json(
-    "ranking_geral.json",
-    []
-)
-
-
-ranking_grupos = carregar_json(
-    "ranking_fase_grupos.json",
-    []
-)
-
-
-jogos = carregar_json(
-    "jogos.json",
-    []
-)
-
-
-palpites = carregar_json(
-    "palpites.json",
-    []
-)
-
-
-participantes = carregar_json(
-    "participantes.json",
-    []
-)
-
-
-estatisticas = carregar_json(
     "estatisticas_bolao.json",
+
     {}
+
 )
 
 
-premiacao = carregar_json(
-    "premiacao.json",
-    {}
+ranking = abrir(
+
+    "ranking_geral.json",
+
+    []
+
 )
-
-
-
-# ==============================================================================
-# CABEÇALHO
-# ==============================================================================
-
-
-st.markdown(
-"""
-<h1 style='text-align:center;color:#006b2e'>
-🏆 Bolão Copa do Mundo 2026
-</h1>
-
-<h4 style='text-align:center'>
-Sistema Oficial • FIFA Premium
-</h4>
-""",
-unsafe_allow_html=True
-)
-
-
-
-lider = "-"
-
-
-if ranking:
-
-    lider = ranking[0].get(
-        "Participante",
-        "-"
-    )
-
 
 
 c1,c2,c3,c4 = st.columns(4)
 
 
-
 c1.metric(
-    "👥 Participantes",
+
+    "Participantes",
+
     estatisticas.get(
         "Participantes",
-        0
+        "ERRO"
     )
-)
 
+)
 
 
 c2.metric(
-    "⚽ Jogos",
+
+    "Jogos",
+
     estatisticas.get(
         "Jogos",
-        "0/104"
+        "ERRO"
     )
-)
 
+)
 
 
 c3.metric(
-    "💰 Arrecadado",
-    moeda(
-        estatisticas.get(
-            "Arrecadado",
-            0
-        )
+
+    "Arrecadado",
+
+    estatisticas.get(
+        "Arrecadado",
+        "ERRO"
     )
+
 )
 
+
+lider = (
+
+    ranking[0]["Participante"]
+
+    if ranking
+
+    else
+
+    "SEM RANKING"
+
+)
 
 
 c4.metric(
-    "🥇 Líder",
+
+    "Líder",
+
     lider
+
 )
-
-
-
-st.divider()
-
-
-
-# ==============================================================================
-# ABAS
-# ==============================================================================
-
-
-aba1, aba2, aba3, aba4, aba5, aba6 = st.tabs(
-    [
-        "🏆 Classificação",
-        "⚽ Jogos",
-        "📋 Palpites",
-        "🏅 Premiação",
-        "👥 Participantes",
-        "📜 Regulamento"
-    ]
-)
-
-
-
-# ==============================================================================
-# CLASSIFICAÇÃO
-# ==============================================================================
-
-
-with aba1:
-
-    st.header(
-        "🏆 Classificação Geral"
-    )
-
-
-    if ranking:
-
-        mostrar_tabela(
-            ranking
-        )
-
-    else:
-
-        st.info(
-            "Ranking aguardando processamento."
-        )
-
-
-
-# ==============================================================================
-# JOGOS
-# ==============================================================================
-
-
-with aba2:
-
-
-    st.header(
-        "⚽ Tabela Completa de Jogos"
-    )
-
-
-    if jogos:
-
-        mostrar_tabela(
-            jogos
-        )
-
-    else:
-
-        st.info(
-            "Nenhum jogo encontrado."
-        )
-
-
-
-# ==============================================================================
-# PALPITES
-# ==============================================================================
-
-
-with aba3:
-
-
-    st.header(
-        "📋 Mapa Geral dos Palpites"
-    )
-
-
-    if palpites:
-
-        mostrar_tabela(
-            palpites
-        )
-
-    else:
-
-        st.info(
-            "Nenhum palpite encontrado."
-        )
-
-
-
-# ==============================================================================
-# PREMIAÇÃO
-# ==============================================================================
-
-
-with aba4:
-
-
-    st.header(
-        "🏅 Premiação Oficial"
-    )
-
-
-    st.subheader(
-        "💰 Valores Arrecadados"
-    )
-
-
-    a,b,c = st.columns(3)
-
-
-    a.metric(
-        "Participantes",
-        estatisticas.get(
-            "Participantes",
-            0
-        )
-    )
-
-
-    b.metric(
-        "Cota Individual",
-        moeda(
-            estatisticas.get(
-                "Cota",
-                0
-            )
-        )
-    )
-
-
-    c.metric(
-        "Total",
-        moeda(
-            estatisticas.get(
-                "Arrecadado",
-                0
-            )
-        )
-    )
-
-
-    st.divider()
-
-
-    st.subheader(
-        "🏆 Pódio Geral"
-    )
-
-
-    podio = premiacao.get(
-        "Podio Geral",
-        []
-    )
-
-
-    if podio:
-
-        mostrar_tabela(
-            podio
-        )
-
-
-
-    st.subheader(
-        "🏆 Pódio Fase de Grupo"
-    )
-
-
-    podio_grupo = premiacao.get(
-        "Podio Fase Grupo",
-        []
-    )
-
-
-    if podio_grupo:
-
-        mostrar_tabela(
-            podio_grupo
-        )
-
-
-
-# ==============================================================================
-# PARTICIPANTES
-# ==============================================================================
-
-
-with aba5:
-
-
-    st.header(
-        "👥 Participantes Inscritos"
-    )
-
-
-    if participantes:
-
-        mostrar_tabela(
-            participantes
-        )
-
-
-
-# ==============================================================================
-# REGULAMENTO
-# ==============================================================================
-
-
-with aba6:
-
-
-    st.header(
-        "📜 Regulamento Oficial"
-    )
-
-
-    st.subheader(
-        "ITEM 4.1 - Jogos"
-    )
-
-
-    st.markdown(
-"""
-🏆 **Placar exato:** 12 pontos
-
-⭐ **Resultado + gols de uma seleção:** 8 pontos
-
-✔️ **Resultado correto:** 5 pontos
-
-➕ **Gol de uma seleção:** 2 pontos
-"""
-    )
-
-
-    st.subheader(
-        "ITEM 4.2 - Seleções"
-    )
-
-
-    st.markdown(
-"""
-🏆 Campeão: **25 pontos**
-
-🥈 Vice: **18 pontos**
-
-🥉 Terceiro: **12 pontos**
-
-🏅 Quarto: **10 pontos**
-
-⚽ Artilheiro: **20 pontos**
-
-Classificações:
-
-- 32 avos: 4 pontos
-- Oitavas: 8 pontos
-- Quartas: 12 pontos
-- Semifinal: 16 pontos
-- Final: 24 pontos
-"""
-    )
-
-
-    st.subheader(
-        "Critérios de desempate"
-    )
-
-
-    st.markdown(
-"""
-1️⃣ Acerto do Campeão
-
-2️⃣ Acerto do Artilheiro
-
-3️⃣ Maior pontuação na fase eliminatória
-
-4️⃣ Antecedência no envio do palpite
-"""
-    )
-
-
-
-# ==============================================================================
-# RODAPÉ
-# ==============================================================================
 
 
 st.divider()
 
 
 st.caption(
-    "🏆 Bolão Copa 2026 • FIFA PREMIUM VISUAL v3.2.1 • Motor Oficial v8.1"
+    "🔍 Auditoria Motor v8.1 / JSON / App"
 )

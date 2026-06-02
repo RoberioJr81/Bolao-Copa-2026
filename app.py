@@ -1,26 +1,23 @@
 # ==============================================================================
 # 🏆 BOLÃO COPA DO MUNDO 2026
-# FIFA PREMIUM VISUAL v2.0
+# FIFA PREMIUM VISUAL v2.1
 #
-# Compatível com:
+# Compatível:
 # MOTOR OFICIAL v6.5
 #
-# CORREÇÕES:
-# ✅ Ranking usa ordem oficial gerada pelo motor
-# ✅ Não recalcula desempate no app
-# ✅ Remove aba inicial
-# ✅ Corrige Palpites
-# ✅ Carrega mapa geral
+# CORREÇÕES v2.1:
+# ✅ Corrige stats em formato lista
+# ✅ Blindagem total contra JSON antigo
+# ✅ Ranking oficial vindo do motor
+# ✅ Não recalcula desempate
 # ✅ Premiação completa
-# ✅ Valores reais do Google Sheets
-# ✅ Regulamento completo
+# ✅ Palpites corrigido
 # ==============================================================================
 
 
 import streamlit as st
 import pandas as pd
 import json
-import os
 
 
 # ==============================================================================
@@ -75,7 +72,7 @@ def moeda(valor):
 
 
 
-def tabela(df):
+def mostrar_tabela(df):
 
     st.dataframe(
         df,
@@ -84,8 +81,9 @@ def tabela(df):
     )
 
 
+
 # ==============================================================================
-# CARREGAR DADOS
+# CARREGAMENTO DOS JSON
 # ==============================================================================
 
 
@@ -121,9 +119,63 @@ palpites = pd.DataFrame(
 )
 
 
+
 stats = carregar_json(
     "estatisticas_bolao.json",
     {}
+)
+
+
+
+# ==============================================================================
+# BLINDAGEM ESTATÍSTICAS
+# ==============================================================================
+
+
+if isinstance(stats, list):
+
+    stats = {}
+
+
+if not isinstance(stats, dict):
+
+    stats = {}
+
+
+
+stats.setdefault(
+    "Participantes",
+    len(ranking)
+)
+
+
+stats.setdefault(
+    "Cota",
+    200
+)
+
+
+stats.setdefault(
+    "Arrecadado",
+    stats["Participantes"]
+    *
+    stats["Cota"]
+)
+
+
+stats.setdefault(
+    "Premiação Geral",
+    stats["Arrecadado"]
+    *
+    0.80
+)
+
+
+stats.setdefault(
+    "Premiação Fase Grupos",
+    stats["Arrecadado"]
+    *
+    0.20
 )
 
 
@@ -135,14 +187,16 @@ stats = carregar_json(
 
 st.markdown(
     """
-    <h1 style='text-align:center;color:#006b2e'>
-    🏆 Bolão Copa do Mundo 2026
-    </h1>
 
-    <p style='text-align:center'>
-    Sistema Oficial • FIFA Premium • Motor v6.5
-    </p>
-    """,
+<h1 style='text-align:center;color:#006b2e'>
+🏆 Bolão Copa do Mundo 2026
+</h1>
+
+<p style='text-align:center'>
+Sistema Oficial • FIFA Premium • Motor v6.5
+</p>
+
+""",
     unsafe_allow_html=True
 )
 
@@ -152,10 +206,7 @@ c1,c2,c3,c4 = st.columns(4)
 
 c1.metric(
     "Participantes",
-    stats.get(
-        "Participantes",
-        len(ranking)
-    )
+    stats["Participantes"]
 )
 
 
@@ -173,9 +224,13 @@ c3.metric(
 
 lider = "-"
 
+
 if not ranking.empty:
 
-    lider = ranking.iloc[0]["Participante"]
+    lider = ranking.iloc[0].get(
+        "Participante",
+        "-"
+    )
 
 
 c4.metric(
@@ -193,14 +248,22 @@ st.divider()
 # ==============================================================================
 
 
-aba1, aba2, aba3, aba4, aba5 = st.tabs(
+aba1,aba2,aba3,aba4,aba5 = st.tabs(
+
     [
+
         "🏆 Classificação",
+
         "🏅 Premiação",
+
         "⚽ Jogos",
+
         "📋 Palpites",
+
         "📜 Regulamento"
+
     ]
+
 )
 
 
@@ -212,9 +275,11 @@ aba1, aba2, aba3, aba4, aba5 = st.tabs(
 
 with aba1:
 
+
     st.header(
         "🏆 Classificação"
     )
+
 
     if ranking.empty:
 
@@ -224,7 +289,7 @@ with aba1:
 
     else:
 
-        tabela(
+        mostrar_tabela(
             ranking
         )
 
@@ -252,37 +317,38 @@ with aba2:
 
 
     a.metric(
+
         "Participantes",
-        stats.get(
-            "Participantes",
-            0
-        )
+
+        stats["Participantes"]
+
     )
 
 
     b.metric(
+
         "Cota individual",
+
         moeda(
-            stats.get(
-                "Cota",
-                0
-            )
+            stats["Cota"]
         )
+
     )
 
 
     c.metric(
+
         "Total arrecadado",
+
         moeda(
-            stats.get(
-                "Arrecadado",
-                0
-            )
+            stats["Arrecadado"]
         )
+
     )
 
 
     st.divider()
+
 
 
     st.subheader(
@@ -293,44 +359,49 @@ with aba2:
     if len(ranking) >= 3:
 
 
-        premio = [
-            0.50,
-            0.30,
-            0.20
+        distribuicao = [
+
+            ("🥇 1º Lugar",0.50),
+
+            ("🥈 2º Lugar",0.30),
+
+            ("🥉 3º Lugar",0.20)
+
         ]
 
 
-        cols = st.columns(3)
+        colunas = st.columns(3)
 
 
-        for i in range(3):
+        for i,item in enumerate(distribuicao):
+
 
             jogador = ranking.iloc[i]
 
+
             valor = (
-                stats.get(
-                    "Premiação Geral",
-                    0
-                )
+                stats["Premiação Geral"]
                 *
-                premio[i]
+                item[1]
             )
 
 
-            cols[i].metric(
+            colunas[i].metric(
 
-                f"{i+1}º Lugar",
+                item[0],
 
                 jogador[
                     "Participante"
                 ],
 
-                f'{moeda(valor)} | {jogador["TOTAL"]} pontos'
+                f'{moeda(valor)} • {jogador["TOTAL"]} pontos'
 
             )
 
 
+
     st.divider()
+
 
 
     st.subheader(
@@ -346,6 +417,7 @@ with aba2:
 
         for i in range(3):
 
+
             jogador = ranking_grupo.iloc[i]
 
 
@@ -353,11 +425,12 @@ with aba2:
 
                 f"{i+1}º Lugar",
 
-                jogador[
-                    "Participante"
-                ],
+                jogador.get(
+                    "Participante",
+                    "-"
+                ),
 
-                f'{jogador["ITEM 4.1. Fase de Grupo"]} pontos'
+                f'{jogador.get("ITEM 4.1. Fase de Grupo",0)} pontos'
 
             )
 
@@ -378,13 +451,16 @@ with aba3:
 
     if jogos.empty:
 
+
         st.warning(
-            "Jogos não localizados"
+            "Jogos não encontrados"
         )
+
 
     else:
 
-        tabela(
+
+        mostrar_tabela(
             jogos
         )
 
@@ -405,13 +481,16 @@ with aba4:
 
     if palpites.empty:
 
+
         st.warning(
-            "Nenhum palpite localizado."
+            "Nenhum palpite localizado"
         )
+
 
     else:
 
-        tabela(
+
+        mostrar_tabela(
             palpites
         )
 
@@ -426,7 +505,7 @@ with aba5:
 
 
     st.header(
-        "📜 Regulamento"
+        "📜 Regulamento Oficial"
     )
 
 
@@ -437,6 +516,7 @@ with aba5:
 
     st.write(
         """
+
 🏆 Placar exato: 12 pontos
 
 ⭐ Resultado + gols de uma seleção: 8 pontos
@@ -444,15 +524,14 @@ with aba5:
 ✔ Resultado correto: 5 pontos
 
 ➕ Gol de uma seleção: 2 pontos
-        """
+
+"""
     )
 
 
-    st.divider()
-
 
     st.subheader(
-        "ITEM 4.2 - Seleções e Premiações"
+        "ITEM 4.2 - Seleções"
     )
 
 
@@ -461,7 +540,7 @@ with aba5:
 
 🏆 Campeão: 25 pontos
 
-🥈 Vice-campeão: 18 pontos
+🥈 Vice campeão: 18 pontos
 
 🥉 Terceiro lugar: 12 pontos
 
@@ -470,7 +549,7 @@ with aba5:
 ⚽ Artilheiro: 20 pontos
 
 
-Avanço de fase:
+Avanço:
 
 • Classificação fase eliminatória
 
@@ -484,11 +563,8 @@ Avanço de fase:
 
 • Final
 
-        """
+"""
     )
-
-
-    st.divider()
 
 
     st.subheader(
@@ -499,17 +575,17 @@ Avanço de fase:
     st.write(
         """
 
-1. Acerto do Campeão
+1️⃣ Campeão
 
-2. Acerto do Artilheiro
+2️⃣ Artilheiro
 
-3. Maior pontuação em fases eliminatórias
+3️⃣ Eliminatórias
 
-4. Maior pontuação na fase de grupos
+4️⃣ Fase de grupo
 
-5. Antecedência no envio do palpite
+5️⃣ Antecedência no envio
 
-        """
+"""
     )
 
 
@@ -521,6 +597,7 @@ Avanço de fase:
 
 st.divider()
 
+
 st.caption(
-    "🏆 Bolão Copa 2026 • FIFA PREMIUM VISUAL v2.0 • Motor Oficial v6.5"
+    "🏆 Bolão Copa 2026 • FIFA PREMIUM VISUAL v2.1 • Motor Oficial v6.5"
 )

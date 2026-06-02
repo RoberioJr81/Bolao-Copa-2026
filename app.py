@@ -1,22 +1,11 @@
-# ==============================================================================
-# 🏆 BOLÃO COPA DO MUNDO 2026
-# APP FIFA PREMIUM v4.0
-#
-# Apenas apresentação
-# Toda lógica está no motor.py
-# ==============================================================================
-
-
 import streamlit as st
 import pandas as pd
 import json
-import os
-from datetime import datetime
 
 
-# ==============================================================================
-# CONFIGURAÇÃO
-# ==============================================================================
+# ======================================================
+# CONFIGURAÇÃO DA PÁGINA
+# ======================================================
 
 st.set_page_config(
     page_title="🏆 Bolão Copa 2026",
@@ -25,9 +14,9 @@ st.set_page_config(
 )
 
 
-# ==============================================================================
+# ======================================================
 # EXECUTA MOTOR
-# ==============================================================================
+# ======================================================
 
 try:
 
@@ -35,22 +24,21 @@ try:
 
     rodar_motor()
 
-    MOTOR_OK = True
-    MOTOR_ERRO = ""
-
 except Exception as erro:
 
-    MOTOR_OK = False
-    MOTOR_ERRO = str(erro)
+    st.warning(
+        "⚠️ Motor não executado. Utilizando último processamento disponível."
+    )
+
+    st.text(str(erro))
 
 
 
-# ==============================================================================
-# FUNÇÕES
-# ==============================================================================
+# ======================================================
+# LEITURA SEGURA JSON
+# ======================================================
 
-
-def carregar_json(nome, padrao):
+def carregar_json(nome, tipo):
 
     try:
 
@@ -60,77 +48,87 @@ def carregar_json(nome, padrao):
             encoding="utf-8"
         ) as arquivo:
 
-            return json.load(arquivo)
+            dados = json.load(
+                arquivo
+            )
+
+
+        if isinstance(
+            dados,
+            tipo
+        ):
+
+            return dados
+
+
+        return (
+            {}
+            if tipo == dict
+            else []
+        )
+
 
     except:
 
-        return padrao
+        return (
+            {}
+            if tipo == dict
+            else []
+        )
 
 
 
-def moeda(valor):
-
-    try:
-
-        return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X",".")
-
-    except:
-
-        return "R$ 0,00"
-
-
-
-# ==============================================================================
-# CARREGAMENTO
-# ==============================================================================
+# ======================================================
+# CARREGAMENTO DOS JSONs
+# ======================================================
 
 
 ranking = carregar_json(
     "ranking_geral.json",
-    []
-)
-
-
-ranking_fase = carregar_json(
-    "ranking_fase_grupos.json",
-    []
-)
-
-
-participantes = carregar_json(
-    "participantes.json",
-    []
+    list
 )
 
 
 jogos = carregar_json(
     "jogos.json",
-    []
+    list
 )
 
 
 palpites = carregar_json(
     "palpites.json",
-    []
+    list
 )
 
 
-premiacao = carregar_json(
-    "premiacao.json",
-    {}
+participantes = carregar_json(
+    "participantes.json",
+    list
 )
 
 
 estatisticas = carregar_json(
     "estatisticas_bolao.json",
-    {}
+    dict
+)
+
+
+premiacao = carregar_json(
+    "premiacao.json",
+    dict
+)
+
+
+auditoria = carregar_json(
+    "auditoria.json",
+    dict
 )
 
 
 
-# ==============================================================================
+# ======================================================
 # CABEÇALHO
-# ==============================================================================
+# ======================================================
 
 
 st.title(
@@ -138,91 +136,74 @@ st.title(
 )
 
 
-c1, c2, c3, c4 = st.columns(4)
+st.caption(
+    "Sistema Oficial • FIFA Premium Visual"
+)
+
+
+
+c1,c2,c3,c4 = st.columns(
+    4
+)
 
 
 
 c1.metric(
-
-    "👥 Inscritos",
-
+    "👥 Participantes",
     estatisticas.get(
         "Participantes",
         0
     )
-
 )
+
 
 
 c2.metric(
-
-    "🏆 Participantes Ativos",
-
-    len(ranking)
-
+    "⚽ Jogos",
+    estatisticas.get(
+        "Jogos",
+        "0/104"
+    )
 )
+
 
 
 c3.metric(
-
-    "⚽ Jogos",
-
-    estatisticas.get(
-        "Jogos",
-        "0/0"
-    )
-
+    "💰 Arrecadado",
+    f"R$ {estatisticas.get('Arrecadado',0):,.2f}"
 )
 
 
+
 c4.metric(
-
-    "🥇 Líder",
-
+    "🏆 Líder",
     estatisticas.get(
         "Lider",
         "-"
     )
-
 )
-
-
-
-st.metric(
-
-    "💰 Valor Arrecadado",
-
-    moeda(
-        estatisticas.get(
-            "Arrecadado",
-            0
-        )
-    )
-
-)
-
 
 
 st.divider()
 
 
 
-# ==============================================================================
+# ======================================================
 # ABAS
-# ==============================================================================
+# ======================================================
 
 
-abas = st.tabs(
+aba1, aba2, aba3, aba4, aba5, aba6, aba7 = st.tabs(
 
     [
 
-        "🏆 Classificação",
+        "🏆 Ranking",
 
         "⚽ Jogos",
 
         "📋 Palpites",
 
-        "🏅 Premiação",
+        "🥇 Premiação",
 
         "👥 Participantes",
 
@@ -236,12 +217,12 @@ abas = st.tabs(
 
 
 
-# ==============================================================================
-# CLASSIFICAÇÃO
-# ==============================================================================
+# ======================================================
+# RANKING
+# ======================================================
 
 
-with abas[0]:
+with aba1:
 
 
     st.header(
@@ -250,20 +231,84 @@ with abas[0]:
 
 
     st.caption(
-        "Critérios: Pontos → Campeão → Artilheiro → Eliminatórias → Antecedência no envio"
+        "Critérios: Pontuação → Campeão → Artilheiro → Eliminatórias → Antecedência"
     )
 
 
     if ranking:
 
+        st.dataframe(
+            pd.DataFrame(
+                ranking
+            ),
+            width="stretch"
+        )
+
+    else:
+
+        st.info(
+            "Ranking aguardando dados."
+        )
+
+
+
+# ======================================================
+# JOGOS
+# ======================================================
+
+
+with aba2:
+
+
+    st.header(
+        "⚽ Tabela Completa de Jogos"
+    )
+
+
+    if jogos:
 
         st.dataframe(
 
-            pd.DataFrame(ranking),
+            pd.DataFrame(
+                jogos
+            ),
 
-            width="stretch",
+            width="stretch"
 
-            hide_index=True
+        )
+
+
+    else:
+
+        st.warning(
+            "Nenhum jogo encontrado."
+        )
+
+
+
+# ======================================================
+# PALPITES
+# ======================================================
+
+
+with aba3:
+
+
+    st.header(
+        "📋 Mapa Geral dos Palpites"
+    )
+
+
+    if palpites:
+
+
+        st.dataframe(
+
+            pd.DataFrame(
+                palpites
+            ),
+
+            width="stretch"
 
         )
 
@@ -272,71 +317,30 @@ with abas[0]:
 
 
         st.info(
-            "Nenhum palpite enviado ainda."
+            "Palpites ainda não carregados."
         )
 
 
 
-# ==============================================================================
-# JOGOS
-# ==============================================================================
-
-
-with abas[1]:
-
-
-    st.header(
-        "⚽ Tabela Completa de Jogos"
-    )
-
-
-    st.dataframe(
-
-        pd.DataFrame(jogos),
-
-        width="stretch",
-
-        hide_index=True
-
-    )
-
-
-
-# ==============================================================================
-# PALPITES
-# ==============================================================================
-
-
-with abas[2]:
-
-
-    st.header(
-        "📋 Mapa Geral dos Palpites"
-    )
-
-
-    st.dataframe(
-
-        pd.DataFrame(palpites),
-
-        width="stretch",
-
-        hide_index=True
-
-    )
-
-
-
-# ==============================================================================
+# ======================================================
 # PREMIAÇÃO
-# ==============================================================================
+# ======================================================
 
 
-with abas[3]:
+with aba4:
 
 
     st.header(
-        "🏅 Premiação Oficial"
+        "🥇 Premiação Oficial"
+    )
+
+
+    valores = premiacao.get(
+
+        "Valores Arrecadados",
+
+        {}
+
     )
 
 
@@ -345,17 +349,12 @@ with abas[3]:
     )
 
 
-    valores = premiacao.get(
-        "Valores Arrecadados",
-        {}
+    p1,p2,p3 = st.columns(
+        3
     )
 
 
-    a,b,c = st.columns(3)
-
-
-
-    a.metric(
+    p1.metric(
 
         "Participantes",
 
@@ -367,35 +366,25 @@ with abas[3]:
     )
 
 
-
-    b.metric(
+    p2.metric(
 
         "Cota",
 
-        moeda(
-            valores.get(
-                "Cota",
-                0
-            )
-        )
+        f"R$ {valores.get('Cota',0):,.2f}"
 
     )
 
 
-
-    c.metric(
+    p3.metric(
 
         "Total",
 
-        moeda(
-            valores.get(
-                "Total",
-                0
-            )
-        )
+        f"R$ {valores.get('Total',0):,.2f}"
 
     )
 
+
+    st.divider()
 
 
     st.subheader(
@@ -403,18 +392,22 @@ with abas[3]:
     )
 
 
-    st.table(
+    if premiacao.get(
+        "Podio Geral"
+    ):
 
-        pd.DataFrame(
 
-            premiacao.get(
-                "Podio Geral",
-                []
+        st.table(
+
+            pd.DataFrame(
+
+                premiacao[
+                    "Podio Geral"
+                ]
+
             )
 
         )
-
-    )
 
 
 
@@ -423,27 +416,31 @@ with abas[3]:
     )
 
 
-    st.table(
+    if premiacao.get(
+        "Podio Grupo"
+    ):
 
-        pd.DataFrame(
 
-            premiacao.get(
-                "Podio Fase Grupo",
-                []
+        st.table(
+
+            pd.DataFrame(
+
+                premiacao[
+                    "Podio Grupo"
+                ]
+
             )
 
         )
 
-    )
 
 
-
-# ==============================================================================
+# ======================================================
 # PARTICIPANTES
-# ==============================================================================
+# ======================================================
 
 
-with abas[4]:
+with aba5:
 
 
     st.header(
@@ -452,85 +449,105 @@ with abas[4]:
 
 
     st.caption(
-
-        "Todos os inscritos. O participante entra no ranking após envio do palpite."
-
+        "Todos os inscritos. O ranking considera apenas participantes efetivados."
     )
 
 
-    st.dataframe(
-
-        pd.DataFrame(participantes),
-
-        width="stretch",
-
-        hide_index=True
-
-    )
+    if participantes:
 
 
+        st.dataframe(
 
-# ==============================================================================
+            pd.DataFrame(
+                participantes
+            ),
+
+            width="stretch"
+
+        )
+
+
+
+# ======================================================
 # REGULAMENTO
-# ==============================================================================
+# ======================================================
 
 
-with abas[5]:
+with aba6:
 
 
     st.header(
-        "📜 Regulamento Oficial"
+        "📜 Regulamento"
     )
 
 
     st.markdown(
-        """
+"""
 
-### ITEM 4.1 - Placar dos Jogos
+### ITEM 4.1 - Jogos
 
-- 🎯 Placar exato: **12 pontos**
-- ✅ Resultado + placar de uma seleção: **8 pontos**
-- ✔️ Apenas vencedor/empate: **5 pontos**
-- ⚽ Um placar correto: **2 pontos**
+🏆 Placar exato: **12 pontos**
 
+Resultado correto + gols de uma seleção: **8 pontos**
+
+Resultado correto: **5 pontos**
+
+Gol de uma seleção: **2 pontos**
+
+
+---
 
 ### ITEM 4.2 - Seleções
 
-- 🏆 Campeão: 25 pontos
-- 🥈 Vice-campeão: 18 pontos
-- 🥉 Terceiro lugar: 12 pontos
-- 🏅 Quarto lugar: 10 pontos
-- ⚽ Artilheiro: 20 pontos
+🏆 Campeão: 25 pontos
+
+🥈 Vice: 18 pontos
+
+🥉 Terceiro: 12 pontos
+
+🏅 Quarto: 10 pontos
+
+⚽ Artilheiro: 20 pontos
 
 
-### Classificação por fase
+### Pontuação de avanço de fase
 
-- 32 avos: 4 pontos
-- Oitavas: 8 pontos
-- Quartas: 12 pontos
-- Semifinal: 16 pontos
-- Final: 24 pontos
+32 avos: 4 pontos
+
+Oitavas: 8 pontos
+
+Quartas: 12 pontos
+
+Semifinal: 16 pontos
+
+Final: 24 pontos
 
 
-### Desempates
+---
 
-1. Maior pontuação total  
-2. Campeão  
-3. Artilheiro  
-4. Fase eliminatória  
-5. Antecedência no envio do palpite
+### Desempate
+
+1. Maior pontuação total
+
+2. Campeão
+
+3. Artilheiro
+
+4. Eliminatórias
+
+5. Antecedência no envio
 
 """
-    )
+)
 
 
 
-# ==============================================================================
+# ======================================================
 # AUDITORIA
-# ==============================================================================
+# ======================================================
 
 
-with abas[6]:
+with aba7:
 
 
     st.header(
@@ -538,58 +555,68 @@ with abas[6]:
     )
 
 
-    st.write(
-
-        "Motor:",
-
-        "✅ OK" if MOTOR_OK else "❌ ERRO"
-
+    a1,a2,a3,a4 = st.columns(
+        4
     )
 
 
-    if MOTOR_ERRO:
+    a1.metric(
 
-        st.error(
-            MOTOR_ERRO
-        )
+        "Participantes",
 
-
-    dados = [
-
-        ["Ranking", len(ranking)],
-
-        ["Participantes", len(participantes)],
-
-        ["Jogos", len(jogos)],
-
-        ["Palpites", len(palpites)],
-
-        ["Premiação", "OK" if premiacao else "Erro"]
-
-    ]
-
-
-    st.table(
-
-        pd.DataFrame(
-
-            dados,
-
-            columns=[
-
-                "Arquivo",
-
-                "Status"
-
-            ]
-
+        auditoria.get(
+            "Participantes",
+            0
         )
 
     )
 
 
-    st.caption(
+    a2.metric(
 
-        f"Última atualização: {datetime.now()}"
+        "Efetivados",
+
+        auditoria.get(
+            "Efetivados",
+            0
+        )
 
     )
+
+
+    a3.metric(
+
+        "Jogos",
+
+        auditoria.get(
+            "Jogos",
+            0
+        )
+
+    )
+
+
+    a4.metric(
+
+        "Ranking",
+
+        auditoria.get(
+            "Ranking",
+            0
+        )
+
+    )
+
+
+    st.json(
+        auditoria
+    )
+
+
+
+st.divider()
+
+
+st.caption(
+    "🏆 Bolão Copa 2026 • Motor Oficial v8.3.2 • FIFA Premium Visual v4.3"
+)

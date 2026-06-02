@@ -1,17 +1,13 @@
 # ==============================================================================
 # 🏆 BOLÃO COPA DO MUNDO 2026
-# MOTOR OFICIAL v8.1 CONSOLIDADO
+# MOTOR OFICIAL v8.2
 #
-# Google Sheets → Motor → JSON → App
-#
-# O app.py NÃO calcula nada.
+# Google Sheets Público → Motor → JSON → App
 # ==============================================================================
 
 import pandas as pd
 import json
-import os
-import gspread
-from google.oauth2.service_account import Credentials
+from urllib.parse import quote
 
 
 # ==============================================================================
@@ -24,30 +20,18 @@ COTA = 200
 
 
 # ==============================================================================
-# GOOGLE SHEETS
+# GOOGLE SHEETS CSV
 # ==============================================================================
 
-def conectar_google():
+def carregar_aba(nome):
 
-    credenciais = json.loads(
-        os.environ["GOOGLE_CREDENTIALS"]
+    url = (
+        f"https://docs.google.com/spreadsheets/d/"
+        f"{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={quote(nome)}"
     )
 
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-    ]
+    return pd.read_csv(url)
 
-    creds = Credentials.from_service_account_info(
-        credenciais,
-        scopes=scopes
-    )
-
-    return gspread.authorize(
-        creds
-    ).open_by_key(
-        SHEET_ID
-    )
 
 
 # ==============================================================================
@@ -66,27 +50,30 @@ def salvar_json(nome, dados):
             dados,
             arquivo,
             ensure_ascii=False,
-            indent=4
+            indent=4,
+            default=str
         )
 
-    print(f"✅ {nome} atualizado")
+    print(f"✅ {nome} criado")
 
 
-def inteiro(valor):
+
+def numero(valor):
 
     try:
+        if pd.isna(valor):
+            return None
+
         return int(valor)
 
     except:
         return None
 
 
+
 def converter_data(valor):
 
     try:
-
-        if str(valor).strip() == "":
-            return pd.Timestamp.max
 
         return pd.to_datetime(
             valor,
@@ -98,8 +85,9 @@ def converter_data(valor):
         return pd.Timestamp.max
 
 
+
 # ==============================================================================
-# REGRA ITEM 4.1
+# ITEM 4.1 - PONTOS POR JOGO
 # ==============================================================================
 
 def calcular_pontos_jogo(
@@ -109,14 +97,18 @@ def calcular_pontos_jogo(
     palp_b
 ):
 
-    ra = inteiro(real_a)
-    rb = inteiro(real_b)
+    ra = numero(real_a)
+    rb = numero(real_b)
+    pa = numero(palp_a)
+    pb = numero(palp_b)
 
-    pa = inteiro(palp_a)
-    pb = inteiro(palp_b)
 
-
-    if None in [ra, rb, pa, pb]:
+    if None in [
+        ra,
+        rb,
+        pa,
+        pb
+    ]:
 
         return 0
 
@@ -131,37 +123,32 @@ def calcular_pontos_jogo(
     resultado_real = (
         "A"
         if ra > rb
-        else
-        "B"
+        else "B"
         if rb > ra
-        else
-        "E"
+        else "E"
     )
 
 
     resultado_palpite = (
         "A"
         if pa > pb
-        else
-        "B"
+        else "B"
         if pb > pa
-        else
-        "E"
+        else "E"
     )
 
 
-    # Resultado + gols de uma seleção
-
     if resultado_real == resultado_palpite:
+
 
         if ra == pa or rb == pb:
 
             return 8
 
+
         return 5
 
 
-    # Gol de uma seleção
 
     if ra == pa or rb == pb:
 
@@ -171,179 +158,278 @@ def calcular_pontos_jogo(
     return 0
 
 
+
 # ==============================================================================
-# MOTOR
+# MOTOR PRINCIPAL
 # ==============================================================================
 
 def rodar_motor():
 
 
-    print("="*80)
-    print("🏆 MOTOR v8.1")
-    print("="*80)
+    print("🏆 Rodando Motor v8.2")
 
 
-    sheet = conectar_google()
+    # --------------------------------------------------------------------------
+    # LEITURA DAS PLANILHAS
+    # --------------------------------------------------------------------------
 
 
-    participantes = pd.DataFrame(
-        sheet
-        .worksheet("C_Participantes")
-        .get_all_records()
+    participantes = carregar_aba(
+        "C_Participantes"
     )
 
 
-    jogos = pd.DataFrame(
-        sheet
-        .worksheet("C_Placares Oficiais")
-        .get_all_records()
+    jogos = carregar_aba(
+        "C_Placares Oficiais"
     )
 
 
-    palpites = pd.DataFrame(
-        sheet
-        .worksheet("C_Palpites")
-        .get_all_records()
+    palpites = carregar_aba(
+        "C_Palpites"
     )
 
 
-    # ======================================================================
-    # ESTATÍSTICAS
-    # ======================================================================
+
+    # limpeza nomes
+
+    participantes.columns = participantes.columns.str.strip()
+    jogos.columns = jogos.columns.str.strip()
+    palpites.columns = palpites.columns.str.strip()
 
 
-    total_participantes = len(
-        participantes
+
+    # --------------------------------------------------------------------------
+    # PARTICIPANTES
+    # --------------------------------------------------------------------------
+
+
+    salvar_json(
+        "participantes.json",
+        participantes.to_dict(
+            orient="records"
+        )
     )
 
 
-    jogos_realizados = jogos[
 
-        (jogos["Gols A"].astype(str) != "")
-
-        &
-
-        (jogos["Gols B"].astype(str) != "")
-
-    ].shape[0]
+    # --------------------------------------------------------------------------
+    # PALPITES
+    # --------------------------------------------------------------------------
 
 
-    total_jogos = len(jogos)
-
-
-
-    # ======================================================================
-    # PARTICIPANTES DO RANKING
-    # ======================================================================
-
-
-    ranking_lista = []
-
-
-    concorrentes = participantes[
-
-        participantes[
-            "Data e hora do Palpite"
-        ].astype(str).str.strip() != ""
-
-    ]
+    salvar_json(
+        "palpites.json",
+        palpites.to_dict(
+            orient="records"
+        )
+    )
 
 
 
-    for _, pessoa in concorrentes.iterrows():
+    # --------------------------------------------------------------------------
+    # JOGOS
+    # --------------------------------------------------------------------------
 
 
-        nome = pessoa[
-            "Participantes"
-        ]
+    salvar_json(
+        "jogos.json",
+        jogos.to_dict(
+            orient="records"
+        )
+    )
 
 
-        # módulos futuros calculáveis
 
-        pontos_grupo = 0
-
-        pontos_eliminatorias = 0
-
-        pontos_classificacao = 0
-
-        pontos_artilheiro = 0
+    # --------------------------------------------------------------------------
+    # NORMALIZAÇÃO DOS PALPITES
+    # --------------------------------------------------------------------------
 
 
-        acertou_campeao = 0
+    chave_jogo = (
 
-        acertou_artilheiro = 0
+        "ID_Jogo"
+
+        if "ID_Jogo" in palpites.columns
+
+        else
+
+        "Jogo"
+
+    )
 
 
-        total = (
+    palpites_longos = palpites.melt(
 
-            pontos_grupo
+        id_vars=[
+            chave_jogo
+        ],
 
-            +
+        var_name="Participante",
 
-            pontos_eliminatorias
+        value_name="Palpite"
 
-            +
+    )
 
-            pontos_classificacao
 
-            +
 
-            pontos_artilheiro
+    # --------------------------------------------------------------------------
+    # RANKING
+    # --------------------------------------------------------------------------
+
+
+    ranking = []
+
+
+    for _, pessoa in participantes.iterrows():
+
+
+        nome = (
+            str(
+                pessoa.get(
+                    "Participantes",
+                    ""
+                )
+            )
+            .strip()
+        )
+
+
+        envio = converter_data(
+
+            pessoa.get(
+                "Data e hora do Palpite"
+            )
 
         )
 
 
-        ranking_lista.append({
+        # Só entra no ranking quem enviou
+
+        if envio == pd.Timestamp.max:
+
+            continue
 
 
-            "Participante":
-                nome,
+
+        pontos_grupo = 0
 
 
-            "ITEM 4.1. Fase de Grupo":
-                pontos_grupo,
+
+        meus = palpites_longos[
+
+            palpites_longos["Participante"]
+            .astype(str)
+            .str.strip()
+
+            == nome
+
+        ]
 
 
-            "ITEM 4.3. e 5 - Confrontos Fase Eliminatórias":
-                pontos_eliminatorias,
+
+        for _, linha in meus.iterrows():
 
 
-            "ITEM 4.2. Passagem de fase, Campeão, Vice, 3º e 4º":
-                pontos_classificacao,
+            jogo = jogos[
+
+                jogos[chave_jogo]
+
+                == linha[chave_jogo]
+
+            ]
 
 
-            "4.2. Artilheiro":
-                pontos_artilheiro,
+            if jogo.empty:
+
+                continue
 
 
-            "TOTAL":
-                total,
+
+            try:
+
+                j = jogo.iloc[0]
 
 
-            "Acertou_Campeao":
-                acertou_campeao,
+                a,b = (
 
-
-            "Acertou_Artilheiro":
-                acertou_artilheiro,
-
-
-            "Pontos_Eliminatorias":
-                pontos_eliminatorias,
-
-
-            "_Envio":
-                converter_data(
-                    pessoa.get(
-                        "Data e hora do Palpite"
+                    str(
+                        linha["Palpite"]
                     )
+                    .lower()
+                    .split("x")
+
                 )
 
-        })
+
+                pontos_grupo += calcular_pontos_jogo(
+
+                    j.get("Gols A"),
+
+                    j.get("Gols B"),
+
+                    a,
+
+                    b
+
+                )
+
+
+            except:
+
+                pass
+
+
+
+        ranking.append(
+
+            {
+
+                "Participante": nome,
+
+
+                "ITEM 4.1. Fase de Grupo":
+                    pontos_grupo,
+
+
+                "ITEM 4.3. e 5 - Confrontos Fase Eliminatórias":
+                    0,
+
+
+                "ITEM 4.2. Passagem de fase, Campeão, Vice, 3º e 4º":
+                    0,
+
+
+                "4.2. Artilheiro":
+                    0,
+
+
+                "TOTAL":
+                    pontos_grupo,
+
+
+                "Acertou_Campeao":
+                    0,
+
+
+                "Acertou_Artilheiro":
+                    0,
+
+
+                "Pontos_Eliminatorias":
+                    0,
+
+
+                "_Envio":
+                    envio
+
+            }
+
+        )
+
 
 
     ranking = pd.DataFrame(
-        ranking_lista
+        ranking
     )
 
 
@@ -385,7 +471,7 @@ def rodar_motor():
 
         0,
 
-        "Posição",
+        "posição",
 
         range(
             1,
@@ -395,96 +481,98 @@ def rodar_motor():
     )
 
 
-    auditoria = ranking.copy()
-
-
-    ranking_publico = ranking.drop(
-
-        columns=[
-
-            "Acertou_Campeao",
-
-            "Acertou_Artilheiro",
-
-            "Pontos_Eliminatorias",
-
-            "_Envio"
-
-        ]
-
-    )
-
-
-    # ======================================================================
-    # JSONS OFICIAIS
-    # ======================================================================
-
 
     salvar_json(
 
         "ranking_geral.json",
 
-        ranking_publico.to_dict(
+        ranking.drop(
+            columns=["_Envio"]
+        )
+        .to_dict(
             orient="records"
         )
 
     )
+
 
 
     salvar_json(
 
         "ranking_fase_grupos.json",
 
-        ranking_publico[
+        ranking[
             [
-                "Posição",
+                "posição",
                 "Participante",
-                "ITEM 4.1. Fase de Grupo"
+                "ITEM 4.1. Fase de Grupo",
+                "TOTAL"
             ]
-        ].to_dict(
+        ]
+        .to_dict(
             orient="records"
         )
 
     )
+
+
+
+    # --------------------------------------------------------------------------
+    # PREMIAÇÃO
+    # --------------------------------------------------------------------------
+
+
+    total = len(participantes) * COTA
 
 
     salvar_json(
 
-        "participantes.json",
+        "premiacao.json",
 
-        participantes.to_dict(
-            orient="records"
-        )
+        {
+
+            "Participantes":
+                len(participantes),
+
+
+            "Cota Individual":
+                COTA,
+
+
+            "Total Arrecadado":
+                total,
+
+
+            "Podio Geral":
+                ranking.head(3)
+                .drop(columns=["_Envio"])
+                .to_dict(
+                    orient="records"
+                ),
+
+            "Podio Fase Grupo":
+                []
+
+        }
 
     )
 
 
-    salvar_json(
 
-        "jogos.json",
-
-        jogos.to_dict(
-            orient="records"
-        )
-
-    )
+    # --------------------------------------------------------------------------
+    # ESTATÍSTICAS
+    # --------------------------------------------------------------------------
 
 
-    salvar_json(
+    realizados = (
 
-        "palpites.json",
+        jogos[
+            jogos["Gols A"]
+            .notna()
+        ]
 
-        palpites.to_dict(
-            orient="records"
-        )
+        .shape[0]
 
-    )
-
-
-    arrecadado = (
-        total_participantes
-        *
-        COTA
     )
 
 
@@ -495,11 +583,11 @@ def rodar_motor():
         {
 
             "Participantes":
-                total_participantes,
+                len(participantes),
 
 
             "Jogos":
-                f"{jogos_realizados}/{total_jogos}",
+                f"{realizados}/{len(jogos)}",
 
 
             "Cota":
@@ -507,75 +595,32 @@ def rodar_motor():
 
 
             "Arrecadado":
-                arrecadado
+                total,
+
+
+            "Lider":
+
+                ranking.iloc[0]["Participante"]
+
+                if len(ranking)
+
+                else ""
 
         }
 
     )
 
 
-    salvar_json(
 
-        "premiacao.json",
-
-        {
-
-            "Podio Geral":
-
-                ranking_publico
-                .head(3)
-                .to_dict(
-                    orient="records"
-                ),
-
-
-            "Podio Fase Grupo":
-
-                ranking_publico
-                .sort_values(
-                    by="ITEM 4.1. Fase de Grupo",
-                    ascending=False
-                )
-                .head(3)
-                .to_dict(
-                    orient="records"
-                )
-
-        }
-
+    print(
+        "🏆 MOTOR v8.2 FINALIZADO"
     )
 
-
-    auditoria["_Envio"] = (
-
-        auditoria["_Envio"]
-        .astype(str)
-
-    )
-
-
-    salvar_json(
-
-        "auditoria.json",
-
-        auditoria.to_dict(
-            orient="records"
-        )
-
-    )
-
-
-    print("="*80)
-    print("🏆 MOTOR v8.1 FINALIZADO")
-    print("✅ Ranking oficial")
-    print("✅ JSONs congelados")
-    print("="*80)
 
 
 # ==============================================================================
 # EXECUTAR
 # ==============================================================================
-
 
 if __name__ == "__main__":
 

@@ -1,17 +1,16 @@
 # ==============================================================================
-# 🏆 MOTOR COPA DO MUNDO 2026
-# MOTOR OFICIAL v6.5
-# Google Sheets → JSON
+# 🏆 BOLÃO COPA DO MUNDO 2026
+# MOTOR OFICIAL v7.1
 #
-# CORREÇÕES v6.5:
-# ✅ Ranking com critérios oficiais de desempate
-# ✅ Usa "Antecedência no envio" da C_Participantes
-# ✅ Preserva nomes exatamente como digitados (acentos/caracteres)
-# ✅ Corrige arrecadação real
-# ✅ Corrige matriz geral de palpites
-# ✅ Corrige jogos com sede e data
-# ✅ Remove dependência de nomes antigos de colunas
+# Google Sheets → Motor → JSON → Streamlit
+#
+# Fonte única:
+# C_Participantes
+# C_Placares Oficiais
+# C_Palpites
+#
 # ==============================================================================
+
 
 import pandas as pd
 import json
@@ -20,56 +19,63 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
-print("=" * 80)
-print("🏆 MOTOR COPA 2026 v6.5")
-print("=" * 80)
+# ==============================================================================
+# CONFIGURAÇÃO
+# ==============================================================================
+
+
+SHEET_ID = "1cDAujojgWNg7SAoR8FQ9MReSB0FTgJvbdYGMjnDVt04"
+
+COTA = 200
 
 
 # ==============================================================================
-# CONFIGURAÇÃO GOOGLE SHEETS
+# GOOGLE SHEETS
 # ==============================================================================
 
-SHEET_ID = "1DAuojgWNg7SAoR8FQ9MReSB0FTgJvbdYGMjnDVt04"
+
+def conectar_google():
+
+    credenciais = json.loads(
+        os.environ["GOOGLE_CREDENTIALS"]
+    )
+
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
 
 
-def carregar_google():
+    creds = Credentials.from_service_account_info(
+        credenciais,
+        scopes=scopes
+    )
 
-    print("🔄 Carregando Google Sheets")
 
-    try:
-        credenciais_json = json.loads(os.environ["GOOGLE_CREDENTIALS"])
+    cliente = gspread.authorize(
+        creds
+    )
 
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive",
-        ]
 
-        creds = Credentials.from_service_account_info(
-            credenciais_json,
-            scopes=scopes
-        )
+    return cliente.open_by_key(
+        SHEET_ID
+    )
 
-        cliente = gspread.authorize(creds)
-
-        planilha = cliente.open_by_key(SHEET_ID)
-
-        print("✅ Google Sheets conectado")
-
-        return planilha
-
-    except Exception as erro:
-        print("❌ Erro Google Sheets")
-        print(erro)
-        raise erro
 
 
 # ==============================================================================
 # UTILIDADES
 # ==============================================================================
 
+
 def salvar_json(nome, dados):
 
-    with open(nome, "w", encoding="utf-8") as arquivo:
+    with open(
+        nome,
+        "w",
+        encoding="utf-8"
+    ) as arquivo:
+
         json.dump(
             dados,
             arquivo,
@@ -77,331 +83,582 @@ def salvar_json(nome, dados):
             indent=4
         )
 
-    print(f"✅ JSON criado: {nome}")
+    print(
+        f"✅ Gerado: {nome}"
+    )
 
 
-def limpar_numero(valor):
+
+def numero(valor):
 
     try:
-        if pd.isna(valor):
-            return 0
-
-        valor = str(valor)
-
-        valor = (
-            valor.replace("R$", "")
-            .replace(".", "")
-            .replace(",", ".")
-            .strip()
-        )
-
-        return float(valor)
+        return int(valor)
 
     except:
+        return None
+
+
+
+def data(valor):
+
+    try:
+
+        return pd.to_datetime(
+            valor,
+            dayfirst=True
+        )
+
+    except:
+
+        return pd.Timestamp.max
+
+
+
+# ==============================================================================
+# ITEM 4.1 - PLACARES
+# ==============================================================================
+
+
+def calcular_pontos_jogo(
+    real_a,
+    real_b,
+    palp_a,
+    palp_b
+):
+
+
+    real_a = numero(real_a)
+    real_b = numero(real_b)
+    palp_a = numero(palp_a)
+    palp_b = numero(palp_b)
+
+
+    if None in [
+        real_a,
+        real_b,
+        palp_a,
+        palp_b
+    ]:
         return 0
 
 
-def texto(valor):
 
-    if pd.isna(valor):
-        return ""
+    if (
+        real_a == palp_a
+        and
+        real_b == palp_b
+    ):
 
-    return str(valor).strip()
-
-
-# ==============================================================================
-# CARREGAMENTO
-# ==============================================================================
-
-sheet = carregar_google()
+        return 12
 
 
-participantes = pd.DataFrame(
-    sheet.worksheet("C_Participantes").get_all_records()
-)
 
-jogos = pd.DataFrame(
-    sheet.worksheet("C_Placares Oficiais").get_all_records()
-)
-
-palpites = pd.DataFrame(
-    sheet.worksheet("C_Palpites").get_all_records()
-)
-
-
-# PRESERVAÇÃO ABSOLUTA DOS NOMES
-participantes["Participantes"] = (
-    participantes["Participantes"]
-    .astype(str)
-)
+    resultado_real = (
+        "A"
+        if real_a > real_b
+        else
+        "B"
+        if real_b > real_a
+        else
+        "E"
+    )
 
 
-print(f"✅ Participantes: {len(participantes)}")
-print(f"✅ Jogos: {len(jogos)}")
-print(f"✅ Palpites: {len(palpites)}")
+    resultado_palpite = (
+        "A"
+        if palp_a > palp_b
+        else
+        "B"
+        if palp_b > palp_a
+        else
+        "E"
+    )
 
 
-# ==============================================================================
-# ARRECADAÇÃO
-# ==============================================================================
 
-total_arrecadado = (
-    participantes["Arrecadado"]
-    .apply(limpar_numero)
-    .sum()
-)
-
-cota = (
-    participantes["Previsto"]
-    .apply(limpar_numero)
-    .max()
-)
+    if resultado_real == resultado_palpite:
 
 
-estatisticas = {
+        if (
+            real_a == palp_a
+            or
+            real_b == palp_b
+        ):
 
-    "Participantes": int(len(participantes)),
-
-    "Cota": cota,
-
-    "Arrecadado": total_arrecadado,
-
-    "Premiação Geral": total_arrecadado * 0.80,
-
-    "Premiação Fase Grupos": total_arrecadado * 0.20
-
-}
+            return 8
 
 
-salvar_json(
-    "estatisticas_bolao.json",
-    estatisticas
-)
+        return 5
+
+
+
+    if (
+        real_a == palp_a
+        or
+        real_b == palp_b
+    ):
+
+        return 2
+
+
+
+    return 0
+
 
 
 # ==============================================================================
-# JOGOS
+# MOTOR
 # ==============================================================================
 
-lista_jogos = []
 
-for _, j in jogos.iterrows():
+def rodar_motor():
 
-    item = {
 
-        "Jogo": j.get("id_jogo", ""),
+    print("="*80)
+    print("🏆 MOTOR v7.1 INICIADO")
+    print("="*80)
 
-        "Data": texto(
-            j.get("Data", "")
-        ),
 
-        "Sede": texto(
-            j.get("Sede", "")
-        ),
 
-        "Seleção A": texto(
-            j.get("Seleção A", "")
-        ),
+    sheet = conectar_google()
 
-        "Placar A": texto(
-            j.get("Gols A", "")
-        ),
 
-        "Placar B": texto(
-            j.get("Gols B", "")
-        ),
 
-        "Seleção B": texto(
-            j.get("Seleção B", "")
+    participantes = pd.DataFrame(
+        sheet
+        .worksheet("C_Participantes")
+        .get_all_records()
+    )
+
+
+    jogos = pd.DataFrame(
+        sheet
+        .worksheet("C_Placares Oficiais")
+        .get_all_records()
+    )
+
+
+    palpites = pd.DataFrame(
+        sheet
+        .worksheet("C_Palpites")
+        .get_all_records()
+    )
+
+
+
+# ==============================================================================
+# NORMALIZAÇÃO DOS PALPITES
+# ==============================================================================
+
+
+    if "ID_Jogo" in palpites.columns:
+
+
+        palpites_longos = palpites.melt(
+
+            id_vars=[
+                "ID_Jogo"
+            ],
+
+
+            var_name=
+                "Participante",
+
+
+            value_name=
+                "Palpite"
+
         )
-    }
-
-    lista_jogos.append(item)
 
 
-salvar_json(
-    "jogos.json",
-    lista_jogos
-)
+    else:
+
+
+        palpites_longos = pd.DataFrame()
+
 
 
 # ==============================================================================
-# RANKING OFICIAL
+# RANKING
 # ==============================================================================
 
-ranking = []
 
-for _, p in participantes.iterrows():
+    ranking = []
 
-    nome = p["Participantes"]
 
-    dados = {
 
-        "Participante": nome,
+    for _, pessoa in participantes.iterrows():
 
-        "ITEM 4.1. Fase de Grupo": 0,
 
-        "ITEM 4.3. e 5 - Confrontos Fase Eliminatórias": 0,
+        nome = pessoa[
+            "Participantes"
+        ]
 
-        "ITEM 4.2. Passagem de fase, Campeão, Vice, 3º e 4º": 0,
 
-        "4.2. Artilheiro": 0,
+        pontos_grupo = 0
 
-        "TOTAL": 0,
 
-        "_desempate_envio":
-            limpar_numero(
-                p.get(
-                    "Antecedência no envio",
-                    999999
+        pontos_eliminatorias = 0
+
+
+        pontos_classificacao = 0
+
+
+        pontos_artilheiro = 0
+
+
+        acertou_campeao = 0
+
+
+
+        # =====================================================
+        # ITEM 4.1
+        # =====================================================
+
+
+        meus_palpites = palpites_longos[
+
+            palpites_longos["Participante"]
+            ==
+            nome
+
+        ]
+
+
+
+        for _, palpite in meus_palpites.iterrows():
+
+
+
+            jogo = jogos[
+
+                jogos["ID_Jogo"]
+                ==
+                palpite["ID_Jogo"]
+
+            ]
+
+
+
+            if jogo.empty:
+
+                continue
+
+
+
+            jogo = jogo.iloc[0]
+
+
+
+            # aqui considera formato:
+            # "2x1"
+
+
+            try:
+
+
+                ga,gb = (
+
+                    str(
+                        palpite["Palpite"]
+                    )
+                    .lower()
+                    .split("x")
+
                 )
-            )
-    }
-
-    ranking.append(dados)
 
 
-ranking = pd.DataFrame(ranking)
+                pontos_grupo += calcular_pontos_jogo(
 
 
-# CRITÉRIO OFICIAL DO REGULAMENTO
-
-ranking = ranking.sort_values(
-
-    by=[
-
-        "TOTAL",
-
-        "ITEM 4.2. Passagem de fase, Campeão, Vice, 3º e 4º",
-
-        "4.2. Artilheiro",
-
-        "ITEM 4.3. e 5 - Confrontos Fase Eliminatórias",
-
-        "ITEM 4.1. Fase de Grupo",
-
-        "_desempate_envio"
-
-    ],
-
-    ascending=[
-
-        False,
-        False,
-        False,
-        False,
-        False,
-        True
-
-    ]
-
-)
+                    jogo.get(
+                        "Gols A"
+                    ),
 
 
-ranking.insert(
-    0,
-    "Posição",
-    range(1, len(ranking)+1)
-)
+                    jogo.get(
+                        "Gols B"
+                    ),
 
 
-# LOG DE AUDITORIA DO RANKING
+                    ga,
 
-print("=" * 80)
-print("🏆 AUDITORIA DO RANKING")
-print("=" * 80)
+                    gb
 
-for _, r in ranking.head(5).iterrows():
-
-    print(
-        f'{r["Posição"]} - '
-        f'{r["Participante"]} | '
-        f'Total: {r["TOTAL"]} | '
-        f'Envio: {r["_desempate_envio"]}'
-    )
+                )
 
 
-ranking_publico = ranking.drop(
-    columns=["_desempate_envio"]
-)
+            except:
 
 
-salvar_json(
-    "ranking_geral.json",
-    ranking_publico.to_dict(
-        orient="records"
-    )
-)
+                pass
+
+
+
+        # =====================================================
+        # TOTAL
+        # =====================================================
+
+
+        total = (
+
+            pontos_grupo
+            +
+            pontos_eliminatorias
+            +
+            pontos_classificacao
+            +
+            pontos_artilheiro
+
+        )
+
+
+
+        ranking.append({
+
+
+            "Participante":
+                nome,
+
+
+            "ITEM 4.1. Fase de Grupo":
+                pontos_grupo,
+
+
+            "ITEM 4.3. e 5 - Confrontos Fase Eliminatórias":
+                pontos_eliminatorias,
+
+
+            "ITEM 4.2. Passagem de fase, Campeão, Vice, 3º e 4º":
+                pontos_classificacao,
+
+
+            "4.2. Artilheiro":
+                pontos_artilheiro,
+
+
+            "TOTAL":
+                total,
+
+
+            "_Campeao":
+                acertou_campeao,
+
+
+            "_Artilheiro":
+                1 if pontos_artilheiro else 0,
+
+
+            "_Envio":
+                data(
+                    pessoa.get(
+                        "Data e hora do Palpite"
+                    )
+                )
+
+        })
+
 
 
 # ==============================================================================
-# RANKING FASE DE GRUPOS
+# DESEMPATE
 # ==============================================================================
 
 
-fase = ranking_publico[
-    [
+    ranking = pd.DataFrame(
+        ranking
+    )
+
+
+    ranking = ranking.sort_values(
+
+        by=[
+
+            "TOTAL",
+
+            "_Campeao",
+
+            "_Artilheiro",
+
+            "ITEM 4.3. e 5 - Confrontos Fase Eliminatórias",
+
+            "_Envio"
+
+        ],
+
+
+        ascending=[
+
+            False,
+            False,
+            False,
+            False,
+            True
+
+        ]
+
+    )
+
+
+
+    ranking.insert(
+
+        0,
+
         "Posição",
-        "Participante",
-        "ITEM 4.1. Fase de Grupo"
-    ]
-]
 
+        range(
+            1,
+            len(ranking)+1
+        )
 
-salvar_json(
-    "ranking_fase_grupos.json",
-    fase.to_dict(
-        orient="records"
     )
-)
 
 
-# ==============================================================================
-# MATRIZ PALPITES
-# ==============================================================================
 
+    ranking_publico = ranking.drop(
 
-matriz = []
+        columns=[
 
-for _, p in palpites.iterrows():
+            "_Campeao",
 
-    linha = {}
+            "_Artilheiro",
 
-    for coluna in palpites.columns:
+            "_Envio"
 
-        valor = p[coluna]
+        ]
 
-        if pd.isna(valor):
-            valor = ""
+    )
 
-        if str(valor).lower() == "nan":
-            valor = ""
-
-        linha[coluna] = valor
-
-
-    matriz.append(linha)
-
-
-salvar_json(
-    "palpites.json",
-    matriz
-)
-
-
-salvar_json(
-    "matriz_palpites.json",
-    matriz
-)
 
 
 # ==============================================================================
-# FINALIZAÇÃO
+# JSONS
 # ==============================================================================
 
-print("=" * 80)
-print("🏆 MOTOR v6.5 APROVADO PARA PRODUÇÃO")
-print("✅ Critério de desempate ativo")
-print("✅ Dados preservados")
-print("✅ Google Sheets como fonte única")
-print("=" * 80)
+
+    salvar_json(
+
+        "ranking_geral.json",
+
+        ranking_publico.to_dict(
+            orient="records"
+        )
+
+    )
+
+
+
+    salvar_json(
+
+        "ranking_fase_grupos.json",
+
+        ranking_publico[
+            [
+                "Posição",
+                "Participante",
+                "ITEM 4.1. Fase de Grupo"
+            ]
+        ].to_dict(
+            orient="records"
+        )
+
+    )
+
+
+
+    salvar_json(
+
+        "jogos.json",
+
+        jogos.to_dict(
+            orient="records"
+        )
+
+    )
+
+
+
+    salvar_json(
+
+        "palpites.json",
+
+        palpites.to_dict(
+            orient="records"
+        )
+
+    )
+
+
+
+    total = (
+        len(participantes)
+        *
+        COTA
+    )
+
+
+
+    salvar_json(
+
+        "estatisticas_bolao.json",
+
+        {
+
+            "Participantes":
+                len(participantes),
+
+            "Cota":
+                COTA,
+
+            "Arrecadado":
+                total,
+
+            "Premiação Geral":
+                total * 0.80,
+
+            "Premiação Fase Grupos":
+                total * 0.20
+
+        }
+
+    )
+
+
+
+    salvar_json(
+
+        "premiacao.json",
+
+        {
+
+            "Podio Geral":
+
+                ranking_publico
+                .head(3)
+                .to_dict(
+                    orient="records"
+                )
+
+
+        }
+
+    )
+
+
+
+    print("="*80)
+    print("🏆 MOTOR v7.1 FINALIZADO")
+    print("✅ JSONS ATUALIZADOS")
+    print("="*80)
+
+
+
+# ==============================================================================
+# EXECUÇÃO
+# ==============================================================================
+
+
+if __name__ == "__main__":
+
+    rodar_motor()

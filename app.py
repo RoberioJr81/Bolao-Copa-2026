@@ -1,12 +1,12 @@
 # ==============================================================================
 # 🏆 BOLÃO COPA DO MUNDO 2026
-# FIFA PREMIUM VISUAL v3.2
+# FIFA PREMIUM VISUAL v3.2.1
 #
-# Compatível:
+# Compatível com:
 # MOTOR OFICIAL v8.1
 #
-# APP NÃO CALCULA REGRA DO BOLÃO
-# Apenas apresenta os JSONs oficiais
+# O APP NÃO CALCULA RESULTADOS
+# Apenas apresenta JSONs gerados pelo motor
 # ==============================================================================
 
 
@@ -19,7 +19,6 @@ import json
 # CONFIGURAÇÃO
 # ==============================================================================
 
-
 st.set_page_config(
     page_title="🏆 Bolão Copa 2026",
     page_icon="🏆",
@@ -31,7 +30,6 @@ st.set_page_config(
 # FUNÇÕES
 # ==============================================================================
 
-
 def carregar_json(nome, padrao):
 
     try:
@@ -42,9 +40,35 @@ def carregar_json(nome, padrao):
             encoding="utf-8"
         ) as arquivo:
 
-            return json.load(arquivo)
+            dados = json.load(arquivo)
 
-    except:
+
+        # garante tipo correto
+
+        if isinstance(padrao, dict):
+
+            if isinstance(dados, dict):
+                return dados
+
+            return padrao
+
+
+        if isinstance(padrao, list):
+
+            if isinstance(dados, list):
+                return dados
+
+            return padrao
+
+
+        return dados
+
+
+    except Exception as erro:
+
+        print(
+            f"Falha carregando {nome}: {erro}"
+        )
 
         return padrao
 
@@ -58,7 +82,7 @@ def moeda(valor):
             f"R$ {float(valor):,.2f}"
             .replace(",", "X")
             .replace(".", ",")
-            .replace("X",".")
+            .replace("X", ".")
         )
 
     except:
@@ -67,7 +91,7 @@ def moeda(valor):
 
 
 
-def tabela(dados):
+def mostrar_tabela(dados):
 
     df = pd.DataFrame(dados)
 
@@ -79,7 +103,7 @@ def tabela(dados):
 
 
 # ==============================================================================
-# CARREGAMENTO JSON
+# CARREGAMENTO DOS JSONS OFICIAIS
 # ==============================================================================
 
 
@@ -125,6 +149,7 @@ premiacao = carregar_json(
 )
 
 
+
 # ==============================================================================
 # CABEÇALHO
 # ==============================================================================
@@ -139,7 +164,6 @@ st.markdown(
 <h4 style='text-align:center'>
 Sistema Oficial • FIFA Premium
 </h4>
-
 """,
 unsafe_allow_html=True
 )
@@ -147,6 +171,7 @@ unsafe_allow_html=True
 
 
 lider = "-"
+
 
 if ranking:
 
@@ -162,52 +187,40 @@ c1,c2,c3,c4 = st.columns(4)
 
 
 c1.metric(
-
     "👥 Participantes",
-
     estatisticas.get(
         "Participantes",
         0
     )
-
 )
 
 
 
 c2.metric(
-
     "⚽ Jogos",
-
     estatisticas.get(
         "Jogos",
         "0/104"
     )
-
 )
 
 
 
 c3.metric(
-
     "💰 Arrecadado",
-
     moeda(
         estatisticas.get(
             "Arrecadado",
             0
         )
     )
-
 )
 
 
 
 c4.metric(
-
     "🥇 Líder",
-
     lider
-
 )
 
 
@@ -221,24 +234,15 @@ st.divider()
 # ==============================================================================
 
 
-aba1,aba2,aba3,aba4,aba5,aba6 = st.tabs(
-
-[
-
-"🏆 Classificação",
-
-"⚽ Jogos",
-
-"📋 Palpites",
-
-"🏅 Premiação",
-
-"👥 Participantes",
-
-"📜 Regulamento"
-
-]
-
+aba1, aba2, aba3, aba4, aba5, aba6 = st.tabs(
+    [
+        "🏆 Classificação",
+        "⚽ Jogos",
+        "📋 Palpites",
+        "🏅 Premiação",
+        "👥 Participantes",
+        "📜 Regulamento"
+    ]
 )
 
 
@@ -250,7 +254,6 @@ aba1,aba2,aba3,aba4,aba5,aba6 = st.tabs(
 
 with aba1:
 
-
     st.header(
         "🏆 Classificação Geral"
     )
@@ -258,16 +261,14 @@ with aba1:
 
     if ranking:
 
-        tabela(
+        mostrar_tabela(
             ranking
         )
 
-
     else:
 
-
-        st.warning(
-            "Ranking não disponível."
+        st.info(
+            "Ranking aguardando processamento."
         )
 
 
@@ -287,16 +288,13 @@ with aba2:
 
     if jogos:
 
-
-        tabela(
+        mostrar_tabela(
             jogos
         )
 
-
     else:
 
-
-        st.warning(
+        st.info(
             "Nenhum jogo encontrado."
         )
 
@@ -317,16 +315,13 @@ with aba3:
 
     if palpites:
 
-
-        tabela(
+        mostrar_tabela(
             palpites
         )
 
-
     else:
 
-
-        st.warning(
+        st.info(
             "Nenhum palpite encontrado."
         )
 
@@ -350,56 +345,41 @@ with aba4:
     )
 
 
-
     a,b,c = st.columns(3)
 
 
-
     a.metric(
-
         "Participantes",
-
         estatisticas.get(
             "Participantes",
             0
         )
-
     )
 
 
-
     b.metric(
-
         "Cota Individual",
-
         moeda(
             estatisticas.get(
                 "Cota",
                 0
             )
         )
-
     )
 
 
-
     c.metric(
-
         "Total",
-
         moeda(
             estatisticas.get(
                 "Arrecadado",
                 0
             )
         )
-
     )
 
 
-
     st.divider()
-
 
 
     st.subheader(
@@ -413,35 +393,11 @@ with aba4:
     )
 
 
-
     if podio:
 
-
-        cols = st.columns(
-            min(
-                3,
-                len(podio)
-            )
+        mostrar_tabela(
+            podio
         )
-
-
-        for i,j in enumerate(
-            podio[:3]
-        ):
-
-
-            cols[i].metric(
-
-                f"{i+1}º Lugar",
-
-                j.get(
-                    "Participante",
-                    "-"
-                ),
-
-                f'{j.get("TOTAL",0)} pontos'
-
-            )
 
 
 
@@ -450,40 +406,17 @@ with aba4:
     )
 
 
-    grupo = premiacao.get(
+    podio_grupo = premiacao.get(
         "Podio Fase Grupo",
         []
     )
 
 
-    if grupo:
+    if podio_grupo:
 
-
-        cols = st.columns(
-            min(
-                3,
-                len(grupo)
-            )
+        mostrar_tabela(
+            podio_grupo
         )
-
-
-        for i,j in enumerate(
-            grupo[:3]
-        ):
-
-
-            cols[i].metric(
-
-                f"{i+1}º Lugar",
-
-                j.get(
-                    "Participante",
-                    "-"
-                ),
-
-                f'{j.get("ITEM 4.1. Fase de Grupo",0)} pontos'
-
-            )
 
 
 
@@ -502,17 +435,8 @@ with aba5:
 
     if participantes:
 
-
-        tabela(
+        mostrar_tabela(
             participantes
-        )
-
-
-    else:
-
-
-        st.warning(
-            "Participantes não encontrados."
         )
 
 
@@ -530,58 +454,50 @@ with aba6:
     )
 
 
-
     st.subheader(
-        "Item 4.1 - Placares"
+        "ITEM 4.1 - Jogos"
     )
 
 
-    st.write(
+    st.markdown(
 """
-🏆 Placar exato: **12 pontos**
+🏆 **Placar exato:** 12 pontos
 
-⭐ Resultado + gols de uma seleção: **8 pontos**
+⭐ **Resultado + gols de uma seleção:** 8 pontos
 
-✔ Resultado correto: **5 pontos**
+✔️ **Resultado correto:** 5 pontos
 
-➕ Gol de uma seleção: **2 pontos**
+➕ **Gol de uma seleção:** 2 pontos
 """
-)
-
-
-
-    st.subheader(
-        "Item 4.2 - Seleções"
     )
 
 
-    st.write(
+    st.subheader(
+        "ITEM 4.2 - Seleções"
+    )
+
+
+    st.markdown(
 """
 🏆 Campeão: **25 pontos**
 
-🥈 Vice-campeão: **18 pontos**
+🥈 Vice: **18 pontos**
 
-🥉 Terceiro lugar: **12 pontos**
+🥉 Terceiro: **12 pontos**
 
-🏅 Quarto lugar: **10 pontos**
+🏅 Quarto: **10 pontos**
 
 ⚽ Artilheiro: **20 pontos**
 
-
 Classificações:
 
-• 32 avos: 4 pontos
-
-• Oitavas: 8 pontos
-
-• Quartas: 12 pontos
-
-• Semifinal: 16 pontos
-
-• Final: 24 pontos
+- 32 avos: 4 pontos
+- Oitavas: 8 pontos
+- Quartas: 12 pontos
+- Semifinal: 16 pontos
+- Final: 24 pontos
 """
-)
-
+    )
 
 
     st.subheader(
@@ -589,7 +505,7 @@ Classificações:
     )
 
 
-    st.write(
+    st.markdown(
 """
 1️⃣ Acerto do Campeão
 
@@ -599,7 +515,7 @@ Classificações:
 
 4️⃣ Antecedência no envio do palpite
 """
-)
+    )
 
 
 
@@ -612,5 +528,5 @@ st.divider()
 
 
 st.caption(
-    "🏆 Bolão Copa 2026 • FIFA PREMIUM VISUAL v3.2 • Motor Oficial v8.1"
+    "🏆 Bolão Copa 2026 • FIFA PREMIUM VISUAL v3.2.1 • Motor Oficial v8.1"
 )

@@ -1,7 +1,7 @@
 # ============================================================
 # MOTOR BOLÃO COPA 2026
 # PRODUÇÃO — RENDER
-# MOTOR OFICIAL v5.0
+# MOTOR OFICIAL v5.1
 # ============================================================
 
 import pandas as pd
@@ -9,6 +9,10 @@ import os
 import traceback
 from urllib.parse import quote
 
+
+# ============================================================
+# CONFIGURAÇÕES
+# ============================================================
 
 SHEET_ID = "1cDAujojgWNg7SAoR8FQ9MReSB0FTgJvbdYGMjnDVt04"
 
@@ -52,8 +56,9 @@ def carregar_dados():
     }
 
 
+
 # ============================================================
-# EXPORTAÇÃO
+# EXPORTAR
 # ============================================================
 
 def exportar_json(nome, df):
@@ -64,32 +69,54 @@ def exportar_json(nome, df):
     )
 
     df.to_json(
-        os.path.join(PASTA_PUBLICACAO,nome),
+
+        os.path.join(
+            PASTA_PUBLICACAO,
+            nome
+        ),
+
         orient="records",
+
         force_ascii=False,
+
         indent=4
+
     )
 
-    print("✅ JSON:", nome)
+    print(
+        "✅ JSON:",
+        nome
+    )
 
 
 
 # ============================================================
-# JOGOS
+# JOGOS OFICIAIS
 # ============================================================
 
 def preparar_jogos(df):
 
 
     base = df[
+
         df["Partidas"].notna()
-    ].reset_index(drop=True)
+
+    ].copy()
+
+
+    base = base.reset_index(drop=True)
 
 
     jogos = pd.DataFrame()
 
 
-    jogos["id_jogo"] = range(1,len(base)+1)
+    jogos["id_jogo"] = range(
+
+        1,
+
+        len(base)+1
+
+    )
 
 
     jogos["Seleção A"] = base["Partidas"]
@@ -109,86 +136,160 @@ def preparar_jogos(df):
 
 
 # ============================================================
-# PALPITES — FORMATO HOMOLOGADO COLAB
+# PALPITES — CONVERSOR OFICIAL COLAB
 # ============================================================
 
 def preparar_palpites(df):
 
 
-    print("📋 Colunas C_Palpites:")
-    print(list(df.columns))
+    print(
+        "🔄 Convertendo palpites brutos"
+    )
 
 
-    mapa = {
-        c.lower().strip(): c
-        for c in df.columns
-    }
+    lista = []
 
 
-    if (
+    colunas = list(df.columns)
 
-        "participante" in mapa
-        and "id_jogo" in mapa
-        and "gols_a" in mapa
-        and "gols_b" in mapa
+
+    # cada participante ocupa 10 colunas
+
+    for inicio in range(
+
+        0,
+
+        len(colunas),
+
+        10
 
     ):
 
 
-        saida = pd.DataFrame()
-
-
-        saida["Participante"] = df[
-            mapa["participante"]
+        bloco = colunas[
+            inicio:inicio+10
         ]
 
 
-        saida["id_jogo"] = df[
-            mapa["id_jogo"]
-        ]
+        if len(bloco) < 10:
+
+            continue
 
 
-        saida["A"] = df[
-            mapa["gols_a"]
-        ]
 
+        participante = (
 
-        saida["B"] = df[
-            mapa["gols_b"]
-        ]
+            bloco[0]
 
+            .replace(" Status","")
 
-        print(
-            "✅ Palpites formato Colab:",
-            len(saida)
+            .strip()
+
         )
 
 
-        return saida
+        id_jogo = 1
 
 
 
-    raise Exception(
-        "Formato C_Palpites não reconhecido"
+        for _, linha in df.iterrows():
+
+
+            try:
+
+
+                gols_a = linha[
+                    bloco[5]
+                ]
+
+
+                gols_b = linha[
+                    bloco[7]
+                ]
+
+
+
+                if (
+
+                    pd.notna(gols_a)
+
+                    and
+
+                    pd.notna(gols_b)
+
+                ):
+
+
+                    lista.append(
+
+                        {
+
+                            "Participante":
+                                participante,
+
+                            "id_jogo":
+                                id_jogo,
+
+                            "A":
+                                int(gols_a),
+
+                            "B":
+                                int(gols_b)
+
+                        }
+
+                    )
+
+
+
+                id_jogo += 1
+
+
+
+            except:
+
+
+                pass
+
+
+
+    resultado = pd.DataFrame(lista)
+
+
+    print(
+
+        "✅ Palpites convertidos:",
+
+        len(resultado)
+
     )
 
 
+    return resultado
+
+
 
 # ============================================================
-# CÁLCULO ITEM 4.1
+# PONTUAÇÃO
 # ============================================================
 
-def calcular_pontos(jogos,palpites):
+def calcular_pontos(jogos, palpites):
 
 
-    lista=[]
+    lista = []
 
 
-    for _,p in palpites.iterrows():
+    for _, p in palpites.iterrows():
 
 
         jogo = jogos[
-            jogos["id_jogo"] == p["id_jogo"]
+
+            jogos["id_jogo"]
+
+            ==
+
+            p["id_jogo"]
+
         ]
 
 
@@ -197,56 +298,77 @@ def calcular_pontos(jogos,palpites):
             continue
 
 
-        jogo=jogo.iloc[0]
+
+        jogo = jogo.iloc[0]
 
 
-        pontos=0
+        pontos = 0
+
 
 
         try:
 
-            ga=int(jogo["Gols A"])
 
-            gb=int(jogo["Gols B"])
+            ga = int(jogo["Gols A"])
+
+            gb = int(jogo["Gols B"])
 
 
-            if ga==p["A"] and gb==p["B"]:
 
-                pontos=12
+            if (
+
+                ga == p["A"]
+
+                and
+
+                gb == p["B"]
+
+            ):
+
+
+                pontos = 12
+
 
 
             elif (
 
-                (ga-gb>0 and p["A"]-p["B"]>0)
+                (ga-gb > 0 and p["A"]-p["B"] > 0)
 
                 or
 
-                (ga-gb<0 and p["A"]-p["B"]<0)
+                (ga-gb < 0 and p["A"]-p["B"] < 0)
 
                 or
 
-                (ga-gb==0 and p["A"]-p["B"]==0)
+                (ga-gb == 0 and p["A"]-p["B"] == 0)
 
             ):
 
-                pontos=5
+
+                pontos = 5
+
 
 
         except:
 
-            pontos=0
+
+            pontos = 0
 
 
 
-        lista.append({
+        lista.append(
 
-            "Participantes":
-                p["Participante"],
+            {
 
-            "Item 4.1. Fase de Grupo":
-                pontos
+                "Participantes":
+                    p["Participante"],
 
-        })
+                "Item 4.1. Fase de Grupo":
+                    pontos
+
+            }
+
+        )
 
 
     return pd.DataFrame(lista)
@@ -263,38 +385,59 @@ def gerar_ranking(df):
     ranking = (
 
         df.groupby(
+
             "Participantes",
+
             as_index=False
+
         )
+
         .sum()
 
     )
 
 
-    ranking["ITEM 4.3. e 5 - Confrontos Fase Eliminatórias"]=0
-
-    ranking["ITEM 4.2. Passagem de fase, Campeão, Vice, 3º e 4º"]=0
-
-    ranking["4.2. Artilheiro"]=0
+    ranking["ITEM 4.3. e 5 - Confrontos Fase Eliminatórias"] = 0
 
 
-    ranking["Total"] = (
+    ranking["ITEM 4.2. Passagem de fase, Campeão, Vice, 3º e 4º"] = 0
 
-        ranking["Item 4.1. Fase de Grupo"]
 
-    )
+    ranking["4.2. Artilheiro"] = 0
+
+
+
+    ranking["Total"] = ranking[
+
+        "Item 4.1. Fase de Grupo"
+
+    ]
+
 
 
     ranking = ranking.sort_values(
+
         "Total",
+
         ascending=False
+
     )
 
 
     ranking.insert(
+
         0,
+
         "Ranking",
-        range(1,len(ranking)+1)
+
+        range(
+
+            1,
+
+            len(ranking)+1
+
+        )
+
     )
 
 
@@ -303,91 +446,160 @@ def gerar_ranking(df):
 
 
 # ============================================================
-# EXECUÇÃO
+# MOTOR
 # ============================================================
 
 def executar_motor():
 
 
     print("="*80)
-    print("🏆 MOTOR COPA 2026 v5")
+
+    print("🏆 MOTOR COPA 2026 v5.1")
+
     print("="*80)
 
 
     try:
 
 
-        dados=carregar_dados()
+        dados = carregar_dados()
 
 
-        jogos=preparar_jogos(
+        print(
+            "✅ Google Sheets conectado"
+        )
+
+
+        jogos = preparar_jogos(
+
             dados["jogos"]
+
         )
 
 
-        palpites=preparar_palpites(
+        palpites = preparar_palpites(
+
             dados["palpites"]
+
         )
 
 
-        pontos=calcular_pontos(
+        pontos = calcular_pontos(
+
             jogos,
+
             palpites
+
         )
 
 
-        ranking=gerar_ranking(
+        ranking = gerar_ranking(
+
             pontos
+
         )
 
 
-        print("🔒 AUDITOR")
 
-        assert len(jogos)==104
-
-        assert len(palpites)==3120
-
-        assert len(ranking)==30
+        print()
+        print("🔒 AUDITOR PRODUÇÃO")
 
 
-        print("✅ Jogos:",len(jogos))
+        assert len(jogos) == 104
 
-        print("✅ Palpites:",len(palpites))
 
-        print("✅ Ranking:",len(ranking))
+        assert len(palpites) == 3120
+
+
+        assert len(ranking) == 30
+
+
+        assert ranking["Total"].max() <= TETO_MAXIMO
+
+
+
+        print(
+
+            "✅ Jogos:",
+
+            len(jogos)
+
+        )
+
+
+        print(
+
+            "✅ Palpites:",
+
+            len(palpites)
+
+        )
+
+
+        print(
+
+            "✅ Ranking:",
+
+            len(ranking)
+
+        )
+
 
 
         exportar_json(
+
             "ranking_geral.json",
+
             ranking
+
         )
 
 
         exportar_json(
+
             "jogos.json",
+
             jogos
+
         )
 
 
-        print("🏆 MOTOR APROVADO")
+        print()
+
+        print(
+
+            "🏆 MOTOR APROVADO PARA PRODUÇÃO"
+
+        )
 
 
         return True
 
 
+
     except Exception as erro:
 
 
-        print("❌ ERRO MOTOR")
+        print(
 
-        print(erro)
+            "❌ ERRO MOTOR"
+
+        )
+
+
+        print(
+            erro
+        )
+
 
         traceback.print_exc()
+
 
         return False
 
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
+
 
     executar_motor()

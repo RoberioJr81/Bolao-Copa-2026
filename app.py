@@ -1,13 +1,16 @@
+# ============================================================
+# APP BOLÃO COPA 2026
+# FIFA PREMIUM VISUAL v1.0
+# ============================================================
+
 import streamlit as st
 import pandas as pd
 import json
 import os
 
-from motor import executar_motor
-
 
 # ============================================================
-# CONFIGURAÇÃO
+# CONFIGURAÇÃO DA PÁGINA
 # ============================================================
 
 st.set_page_config(
@@ -18,12 +21,45 @@ st.set_page_config(
 
 
 # ============================================================
-# EXECUTA MOTOR OFICIAL
+# ESTILO
 # ============================================================
 
-with st.spinner("🔄 Atualizando dados do bolão..."):
+st.markdown(
+    """
+    <style>
 
-    executar_motor()
+    .titulo {
+        font-size:42px;
+        font-weight:900;
+        text-align:center;
+        color:#0b6623;
+    }
+
+    .subtitulo {
+        text-align:center;
+        font-size:18px;
+        color:#555;
+        margin-bottom:30px;
+    }
+
+    .card {
+        background:#f7f7f7;
+        padding:20px;
+        border-radius:15px;
+        text-align:center;
+        box-shadow:0px 2px 8px #ddd;
+    }
+
+    .numero {
+        font-size:32px;
+        font-weight:bold;
+        color:#004aad;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 
 
@@ -31,48 +67,29 @@ with st.spinner("🔄 Atualizando dados do bolão..."):
 # FUNÇÕES
 # ============================================================
 
+PASTA = "publicacao"
+
+
 def carregar_json(nome):
 
-
-    # primeiro tenta dentro da pasta publicacao
-
     caminho = os.path.join(
-        "publicacao",
+        PASTA,
         nome
     )
 
 
     if not os.path.exists(caminho):
 
-        # compatibilidade com arquivos antigos na raiz
-
-        caminho = nome
-
-
-    if not os.path.exists(caminho):
-
-        return None
+        return pd.DataFrame()
 
 
     with open(
         caminho,
         "r",
         encoding="utf-8"
-    ) as f:
+    ) as arquivo:
 
-        return json.load(f)
-
-
-
-def carregar_df(nome):
-
-
-    dados = carregar_json(nome)
-
-
-    if dados is None:
-
-        return pd.DataFrame()
+        dados = json.load(arquivo)
 
 
     return pd.DataFrame(dados)
@@ -80,51 +97,17 @@ def carregar_df(nome):
 
 
 # ============================================================
-# CARREGAMENTO DOS DADOS
+# CARREGAMENTO
 # ============================================================
 
-ranking = carregar_df(
+ranking = carregar_json(
     "ranking_geral.json"
 )
 
 
-premiacao = carregar_df(
-    "premiacao_fase_grupos.json"
-)
-
-
-jogos = carregar_df(
+jogos = carregar_json(
     "jogos.json"
 )
-
-
-site = carregar_json(
-    "site.json"
-)
-
-
-
-if site is None:
-
-
-    site = {
-
-        "titulo":
-        "🏆 Bolão Copa do Mundo 2026",
-
-        "participantes":
-        len(ranking),
-
-        "jogos":
-        len(jogos),
-
-        "teto":
-        1797,
-
-        "status":
-        "Atualizado automaticamente"
-
-    }
 
 
 
@@ -132,65 +115,98 @@ if site is None:
 # CABEÇALHO
 # ============================================================
 
-st.title(
-    site["titulo"]
+st.markdown(
+    "<div class='titulo'>🏆 Bolão Copa do Mundo 2026</div>",
+    unsafe_allow_html=True
 )
 
 
-st.caption(
-    "Sistema oficial com atualização automática pelo motor"
+st.markdown(
+    "<div class='subtitulo'>Sistema Oficial de Ranking • FIFA Premium</div>",
+    unsafe_allow_html=True
 )
 
 
 
-c1, c2, c3, c4 = st.columns(4)
+# ============================================================
+# VALIDAÇÃO
+# ============================================================
+
+if ranking.empty:
+
+
+    st.error(
+        "Ranking ainda não disponível."
+    )
+
+
+    st.stop()
+
+
+
+# ============================================================
+# PAINEL SUPERIOR
+# ============================================================
+
+c1, c2, c3 = st.columns(3)
 
 
 
 with c1:
 
-    st.metric(
-
-        "👥 Participantes",
-
-        site["participantes"]
-
+    st.markdown(
+        f"""
+        <div class='card'>
+        Participantes
+        <div class='numero'>
+        {len(ranking)}
+        </div>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
 
 
 
 with c2:
 
-    st.metric(
-
-        "⚽ Jogos",
-
-        site["jogos"]
-
+    st.markdown(
+        f"""
+        <div class='card'>
+        Jogos Copa 2026
+        <div class='numero'>
+        {len(jogos)}
+        </div>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
 
 
 
 with c3:
 
-    st.metric(
 
-        "🎯 Teto máximo",
-
-        str(site["teto"]) + " pts"
-
+    lider = (
+        ranking
+        .sort_values(
+            "TOTAL",
+            ascending=False
+        )
+        .iloc[0]
     )
 
 
-
-with c4:
-
-    st.metric(
-
-        "📌 Status",
-
-        site["status"]
-
+    st.markdown(
+        f"""
+        <div class='card'>
+        Líder Atual
+        <div class='numero'>
+        {lider["Participantes"]}
+        </div>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
 
 
@@ -203,18 +219,17 @@ st.divider()
 # ABAS
 # ============================================================
 
-
-aba_inicio, aba_ranking, aba_premios, aba_jogos = st.tabs(
+aba1, aba2, aba3, aba4 = st.tabs(
 
     [
 
-        "🏠 Início",
+        "🏅 Ranking",
 
-        "🏆 Ranking Oficial",
+        "📅 Jogos",
 
-        "🥇 Premiações",
+        "💰 Premiação",
 
-        "⚽ Jogos"
+        "📜 Critérios"
 
     ]
 
@@ -223,133 +238,42 @@ aba_inicio, aba_ranking, aba_premios, aba_jogos = st.tabs(
 
 
 # ============================================================
-# ABA INÍCIO
-# ============================================================
-
-
-with aba_inicio:
-
-
-    st.subheader(
-
-        "🏆 Bolão Copa do Mundo 2026"
-
-    )
-
-
-    st.write(
-
-        """
-
-        Sistema automático de acompanhamento:
-
-        - atualização pelo Google Sheets;
-        - cálculo pelo motor oficial;
-        - publicação automática do ranking.
-
-        """
-
-    )
-
-
-    if not ranking.empty:
-
-
-        if ranking["TOTAL"].max() == 0:
-
-
-            st.info(
-
-                "⏳ Copa ainda não iniciada. Ranking definido pelo critério de desempate."
-
-            )
-
-
-        else:
-
-
-            lider = ranking.iloc[0]
-
-
-            st.success(
-
-                f"🏆 Líder atual: {lider['Participante']}"
-
-            )
-
-
-
-# ============================================================
 # ABA RANKING
 # ============================================================
 
-
-with aba_ranking:
+with aba1:
 
 
     st.subheader(
-
-        "🏆 Ranking Geral Oficial"
-
+        "🏅 Ranking Geral"
     )
 
 
-    st.info(
+    tabela = (
 
-        "Critério de desempate aplicado automaticamente conforme regulamento."
+        ranking
+
+        .sort_values(
+
+            "TOTAL",
+
+            ascending=False
+
+        )
 
     )
+
 
 
     st.dataframe(
 
-        ranking,
+        tabela,
 
-        hide_index=True,
+        width="stretch",
 
-        use_container_width=True
-
-    )
-
-
-
-# ============================================================
-# ABA PREMIAÇÃO
-# ============================================================
-
-
-with aba_premios:
-
-
-    st.subheader(
-
-        "🥇 Premiação"
+        hide_index=True
 
     )
-
-
-    if premiacao.empty:
-
-
-        st.info(
-
-            "⏳ Premiação aguardando início da competição."
-
-        )
-
-
-    else:
-
-
-        st.dataframe(
-
-            premiacao,
-
-            hide_index=True,
-
-            use_container_width=True
-
-        )
 
 
 
@@ -357,23 +281,21 @@ with aba_premios:
 # ABA JOGOS
 # ============================================================
 
-
-with aba_jogos:
+with aba2:
 
 
     st.subheader(
-
-        "⚽ Jogos da Copa"
-
+        "📅 Jogos da Copa"
     )
+
 
 
     if jogos.empty:
 
 
-        st.warning(
+        st.info(
 
-            "Jogos ainda não disponíveis."
+            "Jogos ainda não carregados."
 
         )
 
@@ -381,34 +303,92 @@ with aba_jogos:
     else:
 
 
-        if "Fase" in jogos.columns:
-
-
-            fase = st.selectbox(
-
-                "Filtrar fase",
-
-                jogos["Fase"].unique()
-
-            )
-
-
-            jogos = jogos[
-
-                jogos["Fase"] == fase
-
-            ]
-
-
         st.dataframe(
 
             jogos,
 
-            hide_index=True,
+            width="stretch",
 
-            use_container_width=True
+            hide_index=True
 
         )
+
+
+
+# ============================================================
+# ABA PREMIAÇÃO
+# ============================================================
+
+with aba3:
+
+
+    st.subheader(
+        "💰 Premiação Oficial"
+    )
+
+
+
+    st.markdown(
+        """
+        ### 🥇 Campeão
+        Maior percentual da premiação
+
+
+        ### 🥈 Vice-campeão
+        Segundo colocado geral
+
+
+        ### 🥉 Terceiro colocado
+        Terceiro colocado geral
+
+
+        ---
+
+        Os valores serão atualizados conforme arrecadação final do bolão.
+        """
+    )
+
+
+
+# ============================================================
+# ABA CRITÉRIOS
+# ============================================================
+
+with aba4:
+
+
+    st.subheader(
+        "📜 Critérios de Desempate"
+    )
+
+
+
+    st.markdown(
+        """
+        A classificação seguirá os critérios abaixo:
+
+
+        **1º — Maior pontuação total**
+
+        Soma de todos os itens do regulamento.
+
+
+        **2º — Maior quantidade de placares exatos**
+
+        Participante com mais acertos completos.
+
+
+        **3º — Antecedência no envio**
+
+        Persistindo empate, terá vantagem quem enviou primeiro.
+
+
+        ---
+
+
+        Sistema automático conectado ao motor oficial do Bolão Copa 2026.
+        """
+    )
 
 
 
@@ -420,7 +400,5 @@ st.divider()
 
 
 st.caption(
-
-    "🏆 Bolão Copa 2026 — Motor automático ativo"
-
+    "🏆 Bolão Copa 2026 • Motor v5.5 • FIFA Premium"
 )

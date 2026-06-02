@@ -1,541 +1,512 @@
+import streamlit as st
 import pandas as pd
 import json
-import os
-import gspread
-from google.oauth2.service_account import Credentials
 
 
 # ======================================================
 # CONFIGURAÇÃO
 # ======================================================
 
-SHEET_ID = "1cDAujojgWNg7SAoR8FQ9MReSB0FTgJvbdYGMjnDVt04"
-
-COTA = 200
-
-
-# ======================================================
-# GOOGLE
-# ======================================================
-
-def conectar_google():
-
-    credenciais = json.loads(
-        os.environ["GOOGLE_CREDENTIALS"]
-    )
-
-    creds = Credentials.from_service_account_info(
-        credenciais,
-        scopes=[
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive"
-        ]
-    )
-
-    return gspread.authorize(creds).open_by_key(SHEET_ID)
+st.set_page_config(
+    page_title="🏆 Bolão Copa 2026",
+    page_icon="🏆",
+    layout="wide"
+)
 
 
 # ======================================================
-# UTILITÁRIOS
+# EXECUTAR MOTOR
 # ======================================================
 
-def salvar_json(nome, dados):
-
-    with open(nome, "w", encoding="utf-8") as f:
-        json.dump(
-            dados,
-            f,
-            ensure_ascii=False,
-            indent=4,
-            default=str
-        )
-
-    print(f"OK -> {nome}")
-
-
-def numero(v):
-    try:
-        if pd.isna(v):
-            return None
-        return int(v)
-    except:
-        return None
-
-
-def tratar_data(v):
-    try:
-        return pd.to_datetime(
-            v,
-            dayfirst=True
-        )
-    except:
-        return pd.Timestamp.max
-
-
-# ======================================================
-# PONTUAÇÃO ITEM 4.1
-# ======================================================
-
-def calcular_pontos_jogo(real_a, real_b, pal_a, pal_b):
-
-    ra = numero(real_a)
-    rb = numero(real_b)
-    pa = numero(pal_a)
-    pb = numero(pal_b)
-
-    if None in [ra, rb, pa, pb]:
-        return 0
-
-
-    # placar exato
-    if ra == pa and rb == pb:
-        return 12
-
-
-    resultado_real = (
-        "A" if ra > rb else
-        "B" if rb > ra else
-        "E"
-    )
-
-    resultado_palpite = (
-        "A" if pa > pb else
-        "B" if pb > pa else
-        "E"
-    )
-
-
-    if resultado_real == resultado_palpite:
-
-        if ra == pa or rb == pb:
-            return 8
-
-        return 5
-
-
-    if ra == pa or rb == pb:
-        return 2
-
-
-    return 0
-
-
-# ======================================================
-# MOTOR PRINCIPAL
-# ======================================================
-
-def rodar_motor():
-
-    sheet = conectar_google()
-
-
-    participantes = pd.DataFrame(
-        sheet.worksheet(
-            "C_Participantes"
-        ).get_all_records()
-    )
-
-
-    jogos_bruto = pd.DataFrame(
-        sheet.worksheet(
-            "C_Placares Oficiais"
-        ).get_all_records()
-    )
-
-
-    palpites_bruto = pd.DataFrame(
-        sheet.worksheet(
-            "C_Palpites"
-        ).get_all_records()
-    )
-
-
-    # ==================================================
-    # PARTICIPANTES
-    # ==================================================
-
-    participantes["Efetivado"] = participantes[
-        "Data e hora do Palpite"
-    ].apply(
-        lambda x:
-        "Sim"
-        if str(x).strip() != ""
-        else "Não"
-    )
-
-
-    salvar_json(
-        "participantes.json",
-        participantes.to_dict(
-            orient="records"
-        )
-    )
-
-
-    efetivos = participantes[
-        participantes["Efetivado"] == "Sim"
-    ]
-
-
-    # ==================================================
-    # JOGOS TRATADOS
-    # ==================================================
-
-    jogos = []
-
-
-    for idx, linha in jogos_bruto.iterrows():
-
-        try:
-
-            selecao_a = linha.get(
-                "Partidas"
-            )
-
-            selecao_b = linha.get(
-                "Unnamed: 9"
-            )
-
-
-            if (
-                pd.isna(selecao_a)
-                or pd.isna(selecao_b)
-                or selecao_a == "Partidas"
-            ):
-                continue
-
-
-            jogos.append({
-
-                "Jogo":
-                    len(jogos)+1,
-
-                "Data":
-                    linha.get(
-                        "Primeira fase GRUPO A Dia"
-                    ),
-
-                "Sede":
-                    linha.get(
-                        "Sede"
-                    ),
-
-                "Seleção A":
-                    selecao_a,
-
-                "Placar":
-                    f"{linha.get('Unnamed: 5','')}x{linha.get('Unnamed: 7','')}",
-
-                "Seleção B":
-                    selecao_b,
-
-                "Status":
-                    linha.get(
-                        "Status"
-                    )
-            })
-
-
-        except:
-            pass
-
-
-
-    salvar_json(
-        "jogos.json",
-        jogos
-    )
-
-
-    # ==================================================
-    # RANKING
-    # ==================================================
-
-    ranking = []
-
-
-    for _, pessoa in efetivos.iterrows():
-
-        nome = pessoa[
-            "Participantes"
-        ]
-
-        envio = tratar_data(
-            pessoa[
-                "Data e hora do Palpite"
-            ]
-        )
-
-
-        ranking.append({
-
-            "Participante": nome,
-
-            "ITEM 4.1. Fase de Grupo": 0,
-
-            "ITEM 4.3. e 5 - Confrontos Fase Eliminatórias": 0,
-
-            "ITEM 4.2. Passagem de fase, Campeão, Vice, 3º e 4º": 0,
-
-            "4.2. Artilheiro": 0,
-
-            "TOTAL": 0,
-
-            "Acertou_Campeao":0,
-
-            "Acertou_Artilheiro":0,
-
-            "Pontos_Eliminatorias":0,
-
-            "_Envio": envio
-
-        })
-
-
-    ranking_df = pd.DataFrame(
-        ranking
-    )
-
-
-    if not ranking_df.empty:
-
-        ranking_df = ranking_df.sort_values(
-
-            by=[
-                "TOTAL",
-                "Acertou_Campeao",
-                "Acertou_Artilheiro",
-                "Pontos_Eliminatorias",
-                "_Envio"
-            ],
-
-            ascending=[
-                False,
-                False,
-                False,
-                False,
-                True
-            ]
-        )
-
-
-        ranking_df.insert(
-            0,
-            "posição",
-            range(
-                1,
-                len(ranking_df)+1
-            )
-        )
-
-
-    ranking_exportar = ranking_df.drop(
-        columns=[
-            "_Envio",
-            "Acertou_Campeao",
-            "Acertou_Artilheiro",
-            "Pontos_Eliminatorias"
-        ],
-        errors="ignore"
-    )
-
-
-    salvar_json(
-        "ranking_geral.json",
-        ranking_exportar.to_dict(
-            orient="records"
-        )
-    )
-
-
-    salvar_json(
-        "ranking_fase_grupos.json",
-        ranking_exportar.to_dict(
-            orient="records"
-        )
-    )
-
-
-    # ==================================================
-    # PALPITES MATRIZ PREMIUM
-    # ==================================================
-
-    mapa = []
-
-
-    oficial = {
-        "Participante":
-        "Placar Oficial"
-    }
-
-
-    for jogo in jogos:
-
-        chave = (
-            jogo["Seleção A"]
-            +
-            " x "
-            +
-            jogo["Seleção B"]
-        )
-
-        oficial[chave] = jogo["Placar"]
-
-
-    mapa.append(oficial)
-
-
-
-    for _, pessoa in efetivos.iterrows():
-
-        linha = {
-
-            "Participante":
-            pessoa["Participantes"]
-
-        }
-
-
-        for jogo in jogos:
-
-            chave = (
-                jogo["Seleção A"]
-                +
-                " x "
-                +
-                jogo["Seleção B"]
-            )
-
-            linha[chave] = ""
-
-
-        mapa.append(linha)
-
-
-    salvar_json(
-        "palpites.json",
-        mapa
-    )
-
-
-    # ==================================================
-    # PREMIAÇÃO
-    # ==================================================
-
-    total = (
-        len(participantes)
-        *
-        COTA
-    )
-
-
-    podio = []
-
-
-    for medalha, item in zip(
-        ["🥇","🥈","🥉"],
-        ranking_exportar.head(3).to_dict(
-            orient="records"
-        )
-    ):
-
-        podio.append({
-
-            "Posição": medalha,
-
-            "Participante":
-                item["Participante"],
-
-            "Pontos":
-                item["TOTAL"],
-
-            "Premiação":
-                0
-
-        })
-
-
-
-    salvar_json(
-        "premiacao.json",
-        {
-
-            "Participantes":
-                len(participantes),
-
-            "Cota":
-                COTA,
-
-            "Total":
-                total,
-
-            "Podio Geral":
-                podio,
-
-            "Podio Grupo":
-                podio
-
-        }
-    )
-
-
-    # ==================================================
-    # ESTATÍSTICAS
-    # ==================================================
-
-    salvar_json(
-        "estatisticas_bolao.json",
-        {
-
-            "Participantes":
-                len(participantes),
-
-            "Efetivados":
-                len(efetivos),
-
-            "Jogos":
-                f"0/{len(jogos)}",
-
-            "Arrecadado":
-                total,
-
-            "Lider":
-                (
-                    ranking_exportar.iloc[0]["Participante"]
-                    if len(ranking_exportar)
-                    else ""
-                )
-
-        }
-    )
-
-
-    salvar_json(
-        "auditoria.json",
-        {
-
-            "Motor":"OK",
-
-            "Participantes":
-                len(participantes),
-
-            "Efetivados":
-                len(efetivos),
-
-            "Jogos":
-                len(jogos),
-
-            "Ranking":
-                len(ranking_exportar)
-
-        }
-    )
-
-
-# ======================================================
-# EXECUÇÃO
-# ======================================================
-
-if __name__ == "__main__":
-
+try:
+    from motor import rodar_motor
     rodar_motor()
+
+except Exception as e:
+
+    st.warning(
+        "⚠️ Motor não executado. Usando último processamento disponível."
+    )
+
+    st.text(str(e))
+
+
+# ======================================================
+# LEITURA SEGURA JSON
+# ======================================================
+
+def carregar_lista(nome):
+
+    try:
+
+        with open(nome, "r", encoding="utf-8") as f:
+
+            dados = json.load(f)
+
+            if isinstance(dados, list):
+                return dados
+
+            return []
+
+    except:
+
+        return []
+
+
+
+def carregar_dict(nome):
+
+    try:
+
+        with open(nome, "r", encoding="utf-8") as f:
+
+            dados = json.load(f)
+
+            if isinstance(dados, dict):
+                return dados
+
+
+            # compatibilidade com JSON antigo
+            if isinstance(dados, list):
+
+                if len(dados) > 0:
+                    return dados[0]
+
+
+            return {}
+
+    except:
+
+        return {}
+
+
+
+# ======================================================
+# CARREGAR DADOS
+# ======================================================
+
+ranking = carregar_lista(
+    "ranking_geral.json"
+)
+
+
+jogos = carregar_lista(
+    "jogos.json"
+)
+
+
+palpites = carregar_lista(
+    "palpites.json"
+)
+
+
+participantes = carregar_lista(
+    "participantes.json"
+)
+
+
+estatisticas = carregar_dict(
+    "estatisticas_bolao.json"
+)
+
+
+premiacao = carregar_dict(
+    "premiacao.json"
+)
+
+
+auditoria = carregar_dict(
+    "auditoria.json"
+)
+
+
+
+# ======================================================
+# CABEÇALHO
+# ======================================================
+
+st.title(
+    "🏆 Bolão Copa do Mundo 2026"
+)
+
+st.subheader(
+    "Sistema oficial • FIFA Premium"
+)
+
+
+c1,c2,c3,c4 = st.columns(4)
+
+
+c1.metric(
+    "👥 Participantes",
+    estatisticas.get(
+        "Participantes",
+        0
+    )
+)
+
+
+c2.metric(
+    "⚽ Jogos",
+    estatisticas.get(
+        "Jogos",
+        "0/104"
+    )
+)
+
+
+c3.metric(
+    "💰 Valor Arrecadado",
+    f"R$ {estatisticas.get('Arrecadado',0):,.2f}"
+)
+
+
+c4.metric(
+    "🏅 Líder",
+    estatisticas.get(
+        "Lider",
+        "-"
+    )
+)
+
+
+
+st.divider()
+
+
+
+# ======================================================
+# ABAS
+# ======================================================
+
+aba1,aba2,aba3,aba4,aba5,aba6,aba7 = st.tabs(
+
+[
+"🏆 Ranking",
+"⚽ Jogos",
+"📋 Palpites",
+"🥇 Premiação",
+"👥 Participantes",
+"📜 Regulamento",
+"🔧 Auditoria"
+]
+
+)
+
+
+
+# ======================================================
+# RANKING
+# ======================================================
+
+with aba1:
+
+
+    st.header(
+        "🏆 Classificação Geral"
+    )
+
+
+    st.caption(
+        "Critérios: Pontos → Campeão → Artilheiro → Eliminatórias → Antecedência no envio"
+    )
+
+
+    if ranking:
+
+        st.dataframe(
+            pd.DataFrame(ranking),
+            width="stretch"
+        )
+
+    else:
+
+        st.info(
+            "Ranking aguardando processamento."
+        )
+
+
+
+# ======================================================
+# JOGOS
+# ======================================================
+
+with aba2:
+
+
+    st.header(
+        "⚽ Tabela Completa de Jogos"
+    )
+
+
+    if jogos:
+
+        st.dataframe(
+            pd.DataFrame(jogos),
+            width="stretch"
+        )
+
+    else:
+
+        st.warning(
+            "Nenhum jogo localizado."
+        )
+
+
+
+# ======================================================
+# PALPITES
+# ======================================================
+
+with aba3:
+
+
+    st.header(
+        "📋 Mapa Geral dos Palpites"
+    )
+
+
+    if palpites:
+
+        st.dataframe(
+            pd.DataFrame(palpites),
+            width="stretch"
+        )
+
+
+    else:
+
+        st.info(
+            "Nenhum palpite encontrado."
+        )
+
+
+
+# ======================================================
+# PREMIAÇÃO
+# ======================================================
+
+with aba4:
+
+
+    st.header(
+        "🥇 Premiação Oficial"
+    )
+
+
+    st.subheader(
+        "💰 Valores Arrecadados"
+    )
+
+
+    p1,p2,p3 = st.columns(3)
+
+
+    p1.metric(
+        "Participantes",
+        premiacao.get(
+            "Participantes",
+            estatisticas.get(
+                "Participantes",
+                0
+            )
+        )
+    )
+
+
+    p2.metric(
+        "Cota",
+        f"R$ {premiacao.get('Cota',200):,.2f}"
+    )
+
+
+    p3.metric(
+        "Total",
+        f"R$ {premiacao.get('Total',0):,.2f}"
+    )
+
+
+
+    st.divider()
+
+
+
+    st.subheader(
+        "🏆 Pódio Geral"
+    )
+
+
+    if premiacao.get("Podio Geral"):
+
+        st.table(
+            pd.DataFrame(
+                premiacao["Podio Geral"]
+            )
+        )
+
+
+    st.subheader(
+        "🥇 Pódio Fase de Grupo"
+    )
+
+
+    if premiacao.get("Podio Grupo"):
+
+        st.table(
+            pd.DataFrame(
+                premiacao["Podio Grupo"]
+            )
+        )
+
+
+
+# ======================================================
+# PARTICIPANTES
+# ======================================================
+
+with aba5:
+
+
+    st.header(
+        "👥 Participantes Inscritos"
+    )
+
+
+    st.caption(
+        "Todos os inscritos. O participante entra no ranking após envio do palpite."
+    )
+
+
+    if participantes:
+
+        st.dataframe(
+            pd.DataFrame(participantes),
+            width="stretch"
+        )
+
+
+
+# ======================================================
+# REGULAMENTO
+# ======================================================
+
+with aba6:
+
+
+    st.header(
+        "📜 Regulamento Oficial"
+    )
+
+
+    st.markdown(
+"""
+
+### ITEM 4.1 - Jogos
+
+🏆 Placar exato: **12 pontos**
+
+Resultado correto + gols de uma seleção:
+**8 pontos**
+
+Resultado correto:
+**5 pontos**
+
+Gols de uma seleção:
+**2 pontos**
+
+
+---
+
+### ITEM 4.2 - Seleções
+
+🏆 Campeão: 25 pontos
+
+🥈 Vice: 18 pontos
+
+🥉 Terceiro: 12 pontos
+
+🏅 Quarto: 10 pontos
+
+⚽ Artilheiro: 20 pontos
+
+
+### Pontuação de avanço de fase:
+
+32 avos: 4 pontos
+
+Oitavas: 8 pontos
+
+Quartas: 12 pontos
+
+Semifinal: 16 pontos
+
+Final: 24 pontos
+
+"""
+)
+
+
+
+# ======================================================
+# AUDITORIA
+# ======================================================
+
+with aba7:
+
+
+    st.header(
+        "🔧 Auditoria do Sistema"
+    )
+
+
+    st.success(
+        "Fluxo: Google Sheets → motor.py → JSON → app.py"
+    )
+
+
+    col1,col2,col3,col4 = st.columns(4)
+
+
+    col1.metric(
+        "Participantes",
+        auditoria.get(
+            "Participantes",
+            "-"
+        )
+    )
+
+
+    col2.metric(
+        "Efetivados",
+        auditoria.get(
+            "Efetivados",
+            "-"
+        )
+    )
+
+
+    col3.metric(
+        "Jogos",
+        auditoria.get(
+            "Jogos",
+            "-"
+        )
+    )
+
+
+    col4.metric(
+        "Ranking",
+        auditoria.get(
+            "Ranking",
+            "-"
+        )
+    )
+
+
+
+st.divider()
+
+
+st.caption(
+    "🏆 Bolão Copa 2026 • FIFA Premium Visual v4.2 • Motor Oficial v8.3"
+)

@@ -2,29 +2,44 @@ import streamlit as st
 import pandas as pd
 import json
 import os
+import subprocess # Adicionado para permitir rodar o motor via botão
 
 st.set_page_config(page_title="🏆 Bolão Copa 2026", layout="wide")
 
 def carregar_json(nome):
     if not os.path.exists(nome): return []
-    with open(nome, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(nome, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except: return []
 
 st.title("🏆 Bolão Copa do Mundo 2026")
+
+# Botão para atualizar (Força o motor a rodar novamente)
+if st.sidebar.button("🔄 Atualizar Dados da Planilha"):
+    with st.spinner("Sincronizando com o Google Sheets..."):
+        subprocess.run(["python", "motor.py"])
+        st.success("Dados atualizados!")
+        st.rerun()
 
 # Auditoria visual
 auditoria = carregar_json("auditoria.json")
 if isinstance(auditoria, dict) and auditoria.get("Status") != "OK":
-    st.error("O sistema está a aguardar sincronização com a planilha.")
+    st.error("Sistema aguardando sincronização.")
 
 aba1, aba2 = st.tabs(["🏆 Ranking Geral", "⚽ Jogos"])
 
+def exibir_tabela(nome_arquivo):
+    dados = carregar_json(nome_arquivo)
+    if dados:
+        df = pd.DataFrame(dados)
+        # Oculta o índice para ficar mais limpo
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.info("Dados ainda em processamento.")
+
 with aba1:
-    df_ranking = pd.DataFrame(carregar_json("ranking_geral.json"))
-    if not df_ranking.empty: st.dataframe(df_ranking, use_container_width=True)
-    else: st.info("Dados de ranking em processamento.")
+    exibir_tabela("ranking_geral.json")
 
 with aba2:
-    df_jogos = pd.DataFrame(carregar_json("jogos.json"))
-    if not df_jogos.empty: st.dataframe(df_jogos, use_container_width=True)
-    else: st.info("Dados de jogos em processamento.")
+    exibir_tabela("jogos.json")

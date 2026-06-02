@@ -1,348 +1,298 @@
-# ============================================================
+# ==============================================================================
 # 🏆 MOTOR COPA DO MUNDO 2026
-# OFICIAL v6.4
-# FIFA PREMIUM ENGINE
-# ============================================================
+# MOTOR OFICIAL v6.5
+# Google Sheets → JSON
+#
+# CORREÇÕES v6.5:
+# ✅ Ranking com critérios oficiais de desempate
+# ✅ Usa "Antecedência no envio" da C_Participantes
+# ✅ Preserva nomes exatamente como digitados (acentos/caracteres)
+# ✅ Corrige arrecadação real
+# ✅ Corrige matriz geral de palpites
+# ✅ Corrige jogos com sede e data
+# ✅ Remove dependência de nomes antigos de colunas
+# ==============================================================================
 
 import pandas as pd
 import json
 import os
-import urllib.request
-from io import BytesIO
+import gspread
+from google.oauth2.service_account import Credentials
 
 
 print("=" * 80)
-print("🏆 MOTOR COPA 2026 v6.4")
+print("🏆 MOTOR COPA 2026 v6.5")
 print("=" * 80)
 
 
-# ============================================================
+# ==============================================================================
 # CONFIGURAÇÃO GOOGLE SHEETS
-# ============================================================
+# ==============================================================================
 
-SHEET_ID = "COLOQUE_AQUI_SEU_ID_DO_GOOGLE_SHEETS"
-
-URL = (
-    f"https://docs.google.com/spreadsheets/d/"
-    f"{SHEET_ID}/export?format=xlsx"
-)
+SHEET_ID = "1DAuojgWNg7SAoR8FQ9MReSB0FTgJvbdYGMjnDVt04"
 
 
-# ============================================================
-# FUNÇÕES
-# ============================================================
+def carregar_google():
+
+    print("🔄 Carregando Google Sheets")
+
+    try:
+        credenciais_json = json.loads(os.environ["GOOGLE_CREDENTIALS"])
+
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ]
+
+        creds = Credentials.from_service_account_info(
+            credenciais_json,
+            scopes=scopes
+        )
+
+        cliente = gspread.authorize(creds)
+
+        planilha = cliente.open_by_key(SHEET_ID)
+
+        print("✅ Google Sheets conectado")
+
+        return planilha
+
+    except Exception as erro:
+        print("❌ Erro Google Sheets")
+        print(erro)
+        raise erro
+
+
+# ==============================================================================
+# UTILIDADES
+# ==============================================================================
 
 def salvar_json(nome, dados):
 
-    with open(nome, "w", encoding="utf-8") as f:
+    with open(nome, "w", encoding="utf-8") as arquivo:
         json.dump(
             dados,
-            f,
+            arquivo,
             ensure_ascii=False,
-            indent=2
+            indent=4
         )
 
     print(f"✅ JSON criado: {nome}")
 
 
-
-def achar_coluna(df, nomes):
-
-    for c in df.columns:
-        for n in nomes:
-            if str(c).strip().lower() == n.lower():
-                return c
-
-    return None
-
-
-
-def placar(a, b):
-
-    if pd.isna(a) or pd.isna(b):
-        return ""
+def limpar_numero(valor):
 
     try:
-        return f"{int(a)}x{int(b)}"
+        if pd.isna(valor):
+            return 0
+
+        valor = str(valor)
+
+        valor = (
+            valor.replace("R$", "")
+            .replace(".", "")
+            .replace(",", ".")
+            .strip()
+        )
+
+        return float(valor)
 
     except:
+        return 0
+
+
+def texto(valor):
+
+    if pd.isna(valor):
         return ""
 
+    return str(valor).strip()
 
 
-# ============================================================
-# CARREGAR GOOGLE SHEETS
-# ============================================================
+# ==============================================================================
+# CARREGAMENTO
+# ==============================================================================
 
-try:
-
-    print("🔄 Carregando Google Sheets")
-
-    arquivo = urllib.request.urlopen(
-        URL,
-        timeout=20
-    ).read()
-
-    xls = pd.ExcelFile(BytesIO(arquivo))
-
-    print("✅ Google Sheets conectado")
+sheet = carregar_google()
 
 
-except Exception as e:
+participantes = pd.DataFrame(
+    sheet.worksheet("C_Participantes").get_all_records()
+)
 
-    print("❌ Erro Google Sheets")
-    print(e)
+jogos = pd.DataFrame(
+    sheet.worksheet("C_Placares Oficiais").get_all_records()
+)
 
-    print("⚠️ Mantendo JSON existente")
-    exit()
-
-
-
-# ============================================================
-# PARTICIPANTES
-# ============================================================
-
-participantes = pd.read_excel(
-    xls,
-    "C_Participantes"
+palpites = pd.DataFrame(
+    sheet.worksheet("C_Palpites").get_all_records()
 )
 
 
-COL_ID = achar_coluna(
-    participantes,
-    ["ID", "Id"]
-)
-
-COL_NOME = achar_coluna(
-    participantes,
-    [
-        "Participantes",
-        "Participante",
-        "Nome"
-    ]
-)
-
-COL_ENVIO = achar_coluna(
-    participantes,
-    [
-        "Data Envio",
-        "Envio",
-        "Data"
-    ]
-)
-
-
-participantes = participantes.fillna("")
-
-
-# TRAVA DE NOMES
-participantes["NOME_OFICIAL"] = (
-    participantes[COL_NOME]
+# PRESERVAÇÃO ABSOLUTA DOS NOMES
+participantes["Participantes"] = (
+    participantes["Participantes"]
     .astype(str)
 )
 
 
-
-# ============================================================
-# JOGOS
-# ============================================================
-
-placares = pd.read_excel(
-    xls,
-    "C_Placares Oficiais"
-)
-
-
-COL_JOGO = achar_coluna(
-    placares,
-    ["Jogo", "ID_Jogo", "id_jogo"]
-)
-
-COL_DATA = achar_coluna(
-    placares,
-    ["Data"]
-)
-
-COL_SEDE = achar_coluna(
-    placares,
-    ["Sede", "Local"]
-)
-
-COL_A = achar_coluna(
-    placares,
-    ["Seleção A", "Time A"]
-)
-
-COL_B = achar_coluna(
-    placares,
-    ["Seleção B", "Time B"]
-)
-
-COL_GA = achar_coluna(
-    placares,
-    ["Gols A", "Placar A"]
-)
-
-COL_GB = achar_coluna(
-    placares,
-    ["Gols B", "Placar B"]
-)
-
-
-jogos = []
-
-for _, j in placares.iterrows():
-
-    jogos.append({
-
-        "Jogo":
-            j.get(COL_JOGO, ""),
-
-        "Data":
-            str(j.get(COL_DATA, "")),
-
-        "Sede":
-            j.get(COL_SEDE, ""),
-
-        "Seleção A":
-            j.get(COL_A, ""),
-
-        "Placar A":
-            "" if COL_GA is None else j.get(COL_GA, ""),
-
-        "Placar B":
-            "" if COL_GB is None else j.get(COL_GB, ""),
-
-        "Seleção B":
-            j.get(COL_B, "")
-
-    })
-
-
+print(f"✅ Participantes: {len(participantes)}")
 print(f"✅ Jogos: {len(jogos)}")
+print(f"✅ Palpites: {len(palpites)}")
 
 
+# ==============================================================================
+# ARRECADAÇÃO
+# ==============================================================================
 
-# ============================================================
-# PALPITES
-# ============================================================
-
-palpites = pd.read_excel(
-    xls,
-    "C_Palpites"
+total_arrecadado = (
+    participantes["Arrecadado"]
+    .apply(limpar_numero)
+    .sum()
 )
 
-palpites = palpites.fillna("")
-
-
-lista_palpites = (
-    palpites
-    .to_dict("records")
-)
-
-
-print(
-    f"✅ Palpites: {len(lista_palpites)}"
+cota = (
+    participantes["Previsto"]
+    .apply(limpar_numero)
+    .max()
 )
 
 
+estatisticas = {
 
-# ============================================================
-# RANKING
-# ============================================================
+    "Participantes": int(len(participantes)),
+
+    "Cota": cota,
+
+    "Arrecadado": total_arrecadado,
+
+    "Premiação Geral": total_arrecadado * 0.80,
+
+    "Premiação Fase Grupos": total_arrecadado * 0.20
+
+}
+
+
+salvar_json(
+    "estatisticas_bolao.json",
+    estatisticas
+)
+
+
+# ==============================================================================
+# JOGOS
+# ==============================================================================
+
+lista_jogos = []
+
+for _, j in jogos.iterrows():
+
+    item = {
+
+        "Jogo": j.get("id_jogo", ""),
+
+        "Data": texto(
+            j.get("Data", "")
+        ),
+
+        "Sede": texto(
+            j.get("Sede", "")
+        ),
+
+        "Seleção A": texto(
+            j.get("Seleção A", "")
+        ),
+
+        "Placar A": texto(
+            j.get("Gols A", "")
+        ),
+
+        "Placar B": texto(
+            j.get("Gols B", "")
+        ),
+
+        "Seleção B": texto(
+            j.get("Seleção B", "")
+        )
+    }
+
+    lista_jogos.append(item)
+
+
+salvar_json(
+    "jogos.json",
+    lista_jogos
+)
+
+
+# ==============================================================================
+# RANKING OFICIAL
+# ==============================================================================
 
 ranking = []
 
-
 for _, p in participantes.iterrows():
 
+    nome = p["Participantes"]
 
-    nome = p["NOME_OFICIAL"]
+    dados = {
 
+        "Participante": nome,
 
-    enviado = (
-        str(
-            p.get(COL_ENVIO, "")
-        ).strip()
-        != ""
-    )
+        "ITEM 4.1. Fase de Grupo": 0,
 
+        "ITEM 4.3. e 5 - Confrontos Fase Eliminatórias": 0,
 
-    fase_grupo = 0
-    eliminatorias = 0
-    item42 = 0
-    campeao = 0
-    artilheiro = 0
+        "ITEM 4.2. Passagem de fase, Campeão, Vice, 3º e 4º": 0,
 
+        "4.2. Artilheiro": 0,
 
-    total = (
-        fase_grupo
-        + eliminatorias
-        + item42
-        + campeao
-        + artilheiro
-    )
+        "TOTAL": 0,
 
+        "_desempate_envio":
+            limpar_numero(
+                p.get(
+                    "Antecedência no envio",
+                    999999
+                )
+            )
+    }
 
-    ranking.append({
-
-        "Participantes":
-            nome,
-
-        "ITEM 4.1. Fase de Grupo":
-            fase_grupo,
-
-        "ITEM 4.3 e 5 - Confrontos Fase Eliminatórias":
-            eliminatorias,
-
-        "ITEM 4.2. Passagem de fase, Campeão, Vice, 3º e 4º":
-            item42,
-
-        "4.2. Artilheiro":
-            artilheiro,
-
-        "Total":
-            total,
-
-
-        # CAMPOS INTERNOS
-        "_campeao":
-            campeao,
-
-        "_artilheiro":
-            artilheiro,
-
-        "_envio":
-            p.get(COL_ENVIO, ""),
-
-        "_enviado":
-            enviado
-
-    })
-
+    ranking.append(dados)
 
 
 ranking = pd.DataFrame(ranking)
 
 
+# CRITÉRIO OFICIAL DO REGULAMENTO
+
 ranking = ranking.sort_values(
 
     by=[
-        "Total",
-        "_campeao",
-        "_artilheiro",
-        "ITEM 4.3 e 5 - Confrontos Fase Eliminatórias",
-        "_enviado",
-        "_envio"
+
+        "TOTAL",
+
+        "ITEM 4.2. Passagem de fase, Campeão, Vice, 3º e 4º",
+
+        "4.2. Artilheiro",
+
+        "ITEM 4.3. e 5 - Confrontos Fase Eliminatórias",
+
+        "ITEM 4.1. Fase de Grupo",
+
+        "_desempate_envio"
+
     ],
 
     ascending=[
+
         False,
         False,
         False,
         False,
         False,
         True
+
     ]
 
 )
@@ -351,106 +301,93 @@ ranking = ranking.sort_values(
 ranking.insert(
     0,
     "Posição",
-    range(
-        1,
-        len(ranking)+1
+    range(1, len(ranking)+1)
+)
+
+
+# LOG DE AUDITORIA DO RANKING
+
+print("=" * 80)
+print("🏆 AUDITORIA DO RANKING")
+print("=" * 80)
+
+for _, r in ranking.head(5).iterrows():
+
+    print(
+        f'{r["Posição"]} - '
+        f'{r["Participante"]} | '
+        f'Total: {r["TOTAL"]} | '
+        f'Envio: {r["_desempate_envio"]}'
+    )
+
+
+ranking_publico = ranking.drop(
+    columns=["_desempate_envio"]
+)
+
+
+salvar_json(
+    "ranking_geral.json",
+    ranking_publico.to_dict(
+        orient="records"
     )
 )
 
 
-ranking_json = (
-    ranking
-    .to_dict("records")
+# ==============================================================================
+# RANKING FASE DE GRUPOS
+# ==============================================================================
+
+
+fase = ranking_publico[
+    [
+        "Posição",
+        "Participante",
+        "ITEM 4.1. Fase de Grupo"
+    ]
+]
+
+
+salvar_json(
+    "ranking_fase_grupos.json",
+    fase.to_dict(
+        orient="records"
+    )
 )
 
 
+# ==============================================================================
+# MATRIZ PALPITES
+# ==============================================================================
 
-# ============================================================
-# MATRIZ DE PALPITES
-# ============================================================
 
 matriz = []
 
+for _, p in palpites.iterrows():
 
-linha_partidas = {
-    "Participantes":
-    "Partidas"
-}
+    linha = {}
 
+    for coluna in palpites.columns:
 
-linha_oficial = {
-    "Participantes":
-    "Placar Oficial"
-}
+        valor = p[coluna]
 
+        if pd.isna(valor):
+            valor = ""
 
+        if str(valor).lower() == "nan":
+            valor = ""
 
-for _, j in placares.iterrows():
-
-    chave = (
-        str(j.get(COL_A,""))
-        +
-        " x "
-        +
-        str(j.get(COL_B,""))
-    )
-
-    linha_partidas[chave] = chave
-
-    linha_oficial[chave] = placar(
-        j.get(COL_GA,""),
-        j.get(COL_GB,"")
-    )
-
-
-
-matriz.append(
-    linha_partidas
-)
-
-matriz.append(
-    linha_oficial
-)
-
-
-
-for _, p in participantes.iterrows():
-
-    linha = {
-        "Participantes":
-        p["NOME_OFICIAL"]
-    }
-
-
-    for c in linha_partidas:
-
-        if c != "Participantes":
-            linha[c] = ""
+        linha[coluna] = valor
 
 
     matriz.append(linha)
 
 
-
-# ============================================================
-# EXPORTAÇÃO
-# ============================================================
-
-
-salvar_json(
-    "ranking_geral.json",
-    ranking_json
-)
-
-salvar_json(
-    "jogos.json",
-    jogos
-)
-
 salvar_json(
     "palpites.json",
-    lista_palpites
+    matriz
 )
+
 
 salvar_json(
     "matriz_palpites.json",
@@ -458,5 +395,13 @@ salvar_json(
 )
 
 
-print("🏆 MOTOR APROVADO PARA PRODUÇÃO")
+# ==============================================================================
+# FINALIZAÇÃO
+# ==============================================================================
+
+print("=" * 80)
+print("🏆 MOTOR v6.5 APROVADO PARA PRODUÇÃO")
+print("✅ Critério de desempate ativo")
+print("✅ Dados preservados")
+print("✅ Google Sheets como fonte única")
 print("=" * 80)

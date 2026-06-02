@@ -1,33 +1,31 @@
 # ============================================================
-# 🏆 MOTOR BOLÃO COPA 2026
-# PRODUÇÃO — RENDER
-# MOTOR OFICIAL v6.3
+# 🏆 MOTOR COPA DO MUNDO 2026
+# OFICIAL v6.4
+# FIFA PREMIUM ENGINE
 # ============================================================
 
 import pandas as pd
 import json
 import os
+import urllib.request
+from io import BytesIO
+
 
 print("=" * 80)
-print("🏆 MOTOR COPA 2026 v6.3")
+print("🏆 MOTOR COPA 2026 v6.4")
 print("=" * 80)
 
 
 # ============================================================
-# CONFIGURAÇÕES
+# CONFIGURAÇÃO GOOGLE SHEETS
 # ============================================================
 
-URL_PLANILHA = (
-    "https://docs.google.com/spreadsheets/d/"
-    "1Z7H8M7KvRZ3eREPLACE/export?format=xlsx"
+SHEET_ID = "COLOQUE_AQUI_SEU_ID_DO_GOOGLE_SHEETS"
+
+URL = (
+    f"https://docs.google.com/spreadsheets/d/"
+    f"{SHEET_ID}/export?format=xlsx"
 )
-
-ARQUIVOS = {
-    "ranking": "ranking_geral.json",
-    "jogos": "jogos.json",
-    "palpites": "palpites.json",
-    "matriz": "matriz_palpites.json"
-}
 
 
 # ============================================================
@@ -35,6 +33,7 @@ ARQUIVOS = {
 # ============================================================
 
 def salvar_json(nome, dados):
+
     with open(nome, "w", encoding="utf-8") as f:
         json.dump(
             dados,
@@ -46,321 +45,295 @@ def salvar_json(nome, dados):
     print(f"✅ JSON criado: {nome}")
 
 
-def limpar(valor):
-    """
-    Preserva texto original.
-    Apenas remove vazios técnicos.
-    """
-    if pd.isna(valor):
+
+def achar_coluna(df, nomes):
+
+    for c in df.columns:
+        for n in nomes:
+            if str(c).strip().lower() == n.lower():
+                return c
+
+    return None
+
+
+
+def placar(a, b):
+
+    if pd.isna(a) or pd.isna(b):
         return ""
 
-    return str(valor).strip()
-
-
-def numero(valor):
     try:
-        if pd.isna(valor) or valor == "":
-            return ""
-        return int(float(valor))
+        return f"{int(a)}x{int(b)}"
+
     except:
         return ""
 
 
-def placar(a, b):
-    a = numero(a)
-    b = numero(b)
-
-    if a == "" or b == "":
-        return ""
-
-    return f"{a}x{b}"
-
 
 # ============================================================
-# CARREGAMENTO
+# CARREGAR GOOGLE SHEETS
 # ============================================================
-
-print("🔄 Carregando Google Sheets")
 
 try:
 
-    xls = pd.ExcelFile(URL_PLANILHA)
+    print("🔄 Carregando Google Sheets")
 
-    participantes = pd.read_excel(
-        xls,
-        "C_Participantes"
-    )
+    arquivo = urllib.request.urlopen(
+        URL,
+        timeout=20
+    ).read()
 
-    jogos_raw = pd.read_excel(
-        xls,
-        "C_Placares Oficiais"
-    )
-
-    palpites_raw = pd.read_excel(
-        xls,
-        "C_Palpites"
-    )
+    xls = pd.ExcelFile(BytesIO(arquivo))
 
     print("✅ Google Sheets conectado")
 
-except Exception as erro:
+
+except Exception as e:
+
     print("❌ Erro Google Sheets")
-    raise erro
+    print(e)
+
+    print("⚠️ Mantendo JSON existente")
+    exit()
+
 
 
 # ============================================================
 # PARTICIPANTES
 # ============================================================
 
+participantes = pd.read_excel(
+    xls,
+    "C_Participantes"
+)
+
+
+COL_ID = achar_coluna(
+    participantes,
+    ["ID", "Id"]
+)
+
+COL_NOME = achar_coluna(
+    participantes,
+    [
+        "Participantes",
+        "Participante",
+        "Nome"
+    ]
+)
+
+COL_ENVIO = achar_coluna(
+    participantes,
+    [
+        "Data Envio",
+        "Envio",
+        "Data"
+    ]
+)
+
+
 participantes = participantes.fillna("")
 
-lista_participantes = []
 
-for _, p in participantes.iterrows():
+# TRAVA DE NOMES
+participantes["NOME_OFICIAL"] = (
+    participantes[COL_NOME]
+    .astype(str)
+)
 
-    nome = limpar(
-        p.get("Participantes", "")
-    )
-
-    if nome == "":
-        continue
-
-    envio = limpar(
-        p.get("Data Envio", "")
-    )
-
-    lista_participantes.append({
-
-        "ID":
-            limpar(
-                p.get("ID", "")
-            ),
-
-        "Participantes":
-            nome,
-
-        "Data Envio":
-            envio,
-
-        "Enviou":
-            True if envio != "" else False,
-
-        "Fase de Grupo":
-            0,
-
-        "Campeão":
-            0,
-
-        "Artilheiro":
-            0,
-
-        "Eliminatórias":
-            0,
-
-        "TOTAL":
-            0
-    })
 
 
 # ============================================================
 # JOGOS
 # ============================================================
 
+placares = pd.read_excel(
+    xls,
+    "C_Placares Oficiais"
+)
+
+
+COL_JOGO = achar_coluna(
+    placares,
+    ["Jogo", "ID_Jogo", "id_jogo"]
+)
+
+COL_DATA = achar_coluna(
+    placares,
+    ["Data"]
+)
+
+COL_SEDE = achar_coluna(
+    placares,
+    ["Sede", "Local"]
+)
+
+COL_A = achar_coluna(
+    placares,
+    ["Seleção A", "Time A"]
+)
+
+COL_B = achar_coluna(
+    placares,
+    ["Seleção B", "Time B"]
+)
+
+COL_GA = achar_coluna(
+    placares,
+    ["Gols A", "Placar A"]
+)
+
+COL_GB = achar_coluna(
+    placares,
+    ["Gols B", "Placar B"]
+)
+
+
 jogos = []
 
-for idx, j in jogos_raw.iterrows():
-
-    selecao_a = limpar(
-        j.get("Seleção A", "")
-    )
-
-    selecao_b = limpar(
-        j.get("Seleção B", "")
-    )
-
-    if selecao_a == "" and selecao_b == "":
-        continue
+for _, j in placares.iterrows():
 
     jogos.append({
 
         "Jogo":
-            idx + 1,
+            j.get(COL_JOGO, ""),
 
         "Data":
-            limpar(
-                j.get("Data", "")
-            ),
+            str(j.get(COL_DATA, "")),
 
-        "Local":
-            limpar(
-                j.get("Local", "")
-            ),
+        "Sede":
+            j.get(COL_SEDE, ""),
 
         "Seleção A":
-            selecao_a,
+            j.get(COL_A, ""),
 
         "Placar A":
-            numero(
-                j.get("Gols A", "")
-            ),
+            "" if COL_GA is None else j.get(COL_GA, ""),
 
         "Placar B":
-            numero(
-                j.get("Gols B", "")
-            ),
+            "" if COL_GB is None else j.get(COL_GB, ""),
 
         "Seleção B":
-            selecao_b
+            j.get(COL_B, "")
+
     })
 
 
 print(f"✅ Jogos: {len(jogos)}")
 
 
+
 # ============================================================
 # PALPITES
 # ============================================================
 
-palpites = []
-
-matriz = []
-
-cabecalho = ["Partidas"]
-
-for j in jogos:
-
-    cabecalho.append(
-        f"{j['Seleção A']} x {j['Seleção B']}"
-    )
-
-matriz.append(cabecalho)
-
-
-# --------------------
-# LINHA PLACAR OFICIAL
-# --------------------
-
-linha_oficial = [
-    "Placar Oficial"
-]
-
-for j in jogos:
-
-    linha_oficial.append(
-        placar(
-            j["Placar A"],
-            j["Placar B"]
-        )
-    )
-
-matriz.append(
-    linha_oficial
+palpites = pd.read_excel(
+    xls,
+    "C_Palpites"
 )
 
+palpites = palpites.fillna("")
 
-# --------------------
-# PARTICIPANTES
-# --------------------
 
-for participante in lista_participantes:
-
-    nome = participante["Participantes"]
-
-    linha = [
-        nome
-    ]
-
-    dados = palpites_raw[
-        palpites_raw.astype(str)
-        .apply(
-            lambda x:
-            x.str.contains(
-                nome,
-                regex=False
-            )
-        )
-        .any(axis=1)
-    ]
-
-    for j in jogos:
-
-        valor = ""
-
-        if not dados.empty:
-
-            linha_jogo = dados[
-                dados.astype(str)
-                .apply(
-                    lambda x:
-                    x.str.contains(
-                        str(j["Jogo"]),
-                        regex=False
-                    )
-                )
-                .any(axis=1)
-            ]
-
-            if not linha_jogo.empty:
-
-                r = linha_jogo.iloc[0]
-
-                valor = placar(
-                    r.get("Gols A", ""),
-                    r.get("Gols B", "")
-                )
-
-        linha.append(valor)
-
-        palpites.append({
-
-            "Participante":
-                nome,
-
-            "Jogo":
-                j["Jogo"],
-
-            "Palpite":
-                valor
-        })
-
-    matriz.append(linha)
+lista_palpites = (
+    palpites
+    .to_dict("records")
+)
 
 
 print(
-    f"✅ Palpites: {len(palpites)}"
+    f"✅ Palpites: {len(lista_palpites)}"
 )
+
 
 
 # ============================================================
-# RANKING OFICIAL
+# RANKING
 # ============================================================
 
-ranking = pd.DataFrame(
-    lista_participantes
-)
+ranking = []
 
 
-# trava: quem enviou sempre acima
+for _, p in participantes.iterrows():
 
-ranking["_envio_ordem"] = ranking["Enviou"].apply(
-    lambda x: 0 if x else 1
-)
 
-ranking["_data_ordem"] = ranking["Data Envio"].replace(
-    "",
-    "999999999"
-)
+    nome = p["NOME_OFICIAL"]
+
+
+    enviado = (
+        str(
+            p.get(COL_ENVIO, "")
+        ).strip()
+        != ""
+    )
+
+
+    fase_grupo = 0
+    eliminatorias = 0
+    item42 = 0
+    campeao = 0
+    artilheiro = 0
+
+
+    total = (
+        fase_grupo
+        + eliminatorias
+        + item42
+        + campeao
+        + artilheiro
+    )
+
+
+    ranking.append({
+
+        "Participantes":
+            nome,
+
+        "ITEM 4.1. Fase de Grupo":
+            fase_grupo,
+
+        "ITEM 4.3 e 5 - Confrontos Fase Eliminatórias":
+            eliminatorias,
+
+        "ITEM 4.2. Passagem de fase, Campeão, Vice, 3º e 4º":
+            item42,
+
+        "4.2. Artilheiro":
+            artilheiro,
+
+        "Total":
+            total,
+
+
+        # CAMPOS INTERNOS
+        "_campeao":
+            campeao,
+
+        "_artilheiro":
+            artilheiro,
+
+        "_envio":
+            p.get(COL_ENVIO, ""),
+
+        "_enviado":
+            enviado
+
+    })
+
+
+
+ranking = pd.DataFrame(ranking)
 
 
 ranking = ranking.sort_values(
 
     by=[
-        "TOTAL",
-        "Campeão",
-        "Artilheiro",
-        "Eliminatórias",
-        "_envio_ordem",
-        "_data_ordem"
+        "Total",
+        "_campeao",
+        "_artilheiro",
+        "ITEM 4.3 e 5 - Confrontos Fase Eliminatórias",
+        "_enviado",
+        "_envio"
     ],
 
     ascending=[
@@ -368,7 +341,7 @@ ranking = ranking.sort_values(
         False,
         False,
         False,
-        True,
+        False,
         True
     ]
 
@@ -377,45 +350,110 @@ ranking = ranking.sort_values(
 
 ranking.insert(
     0,
-    "Ranking",
+    "Posição",
     range(
         1,
-        len(ranking) + 1
+        len(ranking)+1
     )
 )
 
 
-ranking = ranking.drop(
-    columns=[
-        "_envio_ordem",
-        "_data_ordem"
-    ]
+ranking_json = (
+    ranking
+    .to_dict("records")
 )
+
+
+
+# ============================================================
+# MATRIZ DE PALPITES
+# ============================================================
+
+matriz = []
+
+
+linha_partidas = {
+    "Participantes":
+    "Partidas"
+}
+
+
+linha_oficial = {
+    "Participantes":
+    "Placar Oficial"
+}
+
+
+
+for _, j in placares.iterrows():
+
+    chave = (
+        str(j.get(COL_A,""))
+        +
+        " x "
+        +
+        str(j.get(COL_B,""))
+    )
+
+    linha_partidas[chave] = chave
+
+    linha_oficial[chave] = placar(
+        j.get(COL_GA,""),
+        j.get(COL_GB,"")
+    )
+
+
+
+matriz.append(
+    linha_partidas
+)
+
+matriz.append(
+    linha_oficial
+)
+
+
+
+for _, p in participantes.iterrows():
+
+    linha = {
+        "Participantes":
+        p["NOME_OFICIAL"]
+    }
+
+
+    for c in linha_partidas:
+
+        if c != "Participantes":
+            linha[c] = ""
+
+
+    matriz.append(linha)
+
 
 
 # ============================================================
 # EXPORTAÇÃO
 # ============================================================
 
+
 salvar_json(
-    ARQUIVOS["ranking"],
-    ranking.to_dict(
-        orient="records"
-    )
+    "ranking_geral.json",
+    ranking_json
 )
 
 salvar_json(
-    ARQUIVOS["jogos"],
+    "jogos.json",
     jogos
 )
 
 salvar_json(
-    ARQUIVOS["palpites"],
-    palpites
+    "palpites.json",
+    lista_palpites
 )
 
 salvar_json(
-    ARQUIVOS["matriz"],
+    "matriz_palpites.json",
     matriz
 )
 

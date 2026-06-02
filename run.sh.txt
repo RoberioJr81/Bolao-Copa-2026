@@ -1,7 +1,5 @@
 #!/bin/bash
-# Executa o motor em segundo plano (&) para não prender o processo do Streamlit
-python motor.py &
-
-# O comando que mantém o serviço "vivo" deve ser o último
-# O --server.port=$PORT usa a variável do Render automaticamente
+# Roda o motor uma vez para buscar os dados
+python motor.py
+# Inicia o site e mantém o processo vivo
 streamlit run app.py --server.port=$PORT --server.address=0.0.0.0

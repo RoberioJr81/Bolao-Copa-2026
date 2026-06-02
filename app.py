@@ -1,6 +1,6 @@
 # ============================================================
 # APP BOLÃO COPA 2026
-# FIFA PREMIUM VISUAL v1.1
+# FIFA PREMIUM VISUAL v1.2
 # COMPATÍVEL COM MOTOR OFICIAL v5.5
 # ============================================================
 
@@ -11,7 +11,7 @@ import os
 
 
 # ============================================================
-# CONFIGURAÇÃO
+# CONFIGURAÇÃO DA PÁGINA
 # ============================================================
 
 st.set_page_config(
@@ -21,61 +21,71 @@ st.set_page_config(
 )
 
 
+
+# ============================================================
+# LOCAL DOS ARQUIVOS
+# ============================================================
+
 BASE_DIR = os.path.dirname(
     os.path.abspath(__file__)
 )
 
 
-PASTA_PUBLICACAO = os.path.join(
-    BASE_DIR,
-    "publicacao"
-)
-
-
 
 # ============================================================
-# CARREGAR JSON
+# LEITOR INTELIGENTE DE JSON
 # ============================================================
 
 def carregar_json(nome):
 
 
-    caminho = os.path.join(
-        PASTA_PUBLICACAO,
-        nome
-    )
+    caminhos = [
 
+        os.path.join(
+            BASE_DIR,
+            nome
+        ),
 
-    if not os.path.exists(caminho):
-
-        st.error(
-            f"Arquivo não encontrado: {nome}"
+        os.path.join(
+            BASE_DIR,
+            "publicacao",
+            nome
         )
 
-        return pd.DataFrame()
+    ]
 
 
 
-    with open(
-        caminho,
-        "r",
-        encoding="utf-8"
-    ) as arquivo:
+    for caminho in caminhos:
 
 
-        dados = json.load(
-            arquivo
-        )
+        if os.path.exists(caminho):
 
 
-    return pd.DataFrame(
-        dados
-    )
+            with open(
+                caminho,
+                "r",
+                encoding="utf-8"
+            ) as arquivo:
+
+
+                dados = json.load(
+                    arquivo
+                )
+
+
+            return pd.DataFrame(
+                dados
+            )
+
+
+
+    return pd.DataFrame()
 
 
 
 # ============================================================
-# DADOS
+# CARREGAMENTO
 # ============================================================
 
 ranking = carregar_json(
@@ -90,42 +100,71 @@ jogos = carregar_json(
 
 
 # ============================================================
-# CSS
+# AJUSTE DE COMPATIBILIDADE
+# ============================================================
+
+if not ranking.empty:
+
+
+    if "TOTAL" not in ranking.columns:
+
+
+        if "Total" in ranking.columns:
+
+
+            ranking = ranking.rename(
+
+                columns={
+
+                    "Total":"TOTAL"
+
+                }
+
+            )
+
+
+
+# ============================================================
+# CSS FIFA PREMIUM
 # ============================================================
 
 st.markdown(
     """
     <style>
 
-    .titulo{
-        font-size:42px;
+    .titulo {
+
+        text-align:center;
+        font-size:44px;
         font-weight:900;
         color:#006b2e;
-        text-align:center;
+
     }
 
-    .subtitulo{
+
+    .subtitulo {
+
         text-align:center;
         color:#555;
-        margin-bottom:40px;
+        font-size:18px;
+
     }
 
-    .card{
+
+    .topo {
+
         background:#f8f9fa;
-        padding:22px;
-        border-radius:18px;
+        border-radius:15px;
+        padding:20px;
         text-align:center;
-        box-shadow:0px 3px 8px #ddd;
-    }
 
-    .valor{
-        font-size:34px;
-        font-weight:bold;
     }
 
     </style>
     """,
+
     unsafe_allow_html=True
+
 )
 
 
@@ -135,34 +174,51 @@ st.markdown(
 # ============================================================
 
 st.markdown(
+
     """
-    <div class='titulo'>
+
+    <div class="titulo">
     🏆 Bolão Copa do Mundo 2026
     </div>
+
     """,
+
     unsafe_allow_html=True
+
 )
 
 
 st.markdown(
+
     """
-    <div class='subtitulo'>
+
+    <div class="subtitulo">
     Sistema Oficial • Motor v5.5 • FIFA Premium
     </div>
+
     """,
+
     unsafe_allow_html=True
+
 )
 
 
 
+st.divider()
+
+
+
 # ============================================================
-# SEGURANÇA
+# VALIDAÇÃO
 # ============================================================
 
 if ranking.empty:
 
-    st.warning(
-        "Ranking aguardando geração pelo motor."
+
+    st.error(
+
+        "Classificação ainda não disponível."
+
     )
 
 
@@ -171,48 +227,78 @@ if ranking.empty:
 
 
 # ============================================================
-# PAINEL
+# PAINEL SUPERIOR
 # ============================================================
 
 c1, c2, c3, c4 = st.columns(4)
 
 
+
 with c1:
 
+
     st.metric(
+
         "👥 Participantes",
+
         len(ranking)
+
     )
+
 
 
 with c2:
 
+
     st.metric(
+
         "⚽ Jogos",
+
         len(jogos)
+
     )
+
 
 
 with c3:
 
+
     st.metric(
-        "🎯 Teto possível",
+
+        "🎯 Teto máximo",
+
         "1797 pts"
+
     )
+
 
 
 with c4:
 
 
-    lider = ranking.sort_values(
-        "TOTAL",
-        ascending=False
-    ).iloc[0]
+    lider = (
+
+        ranking
+
+        .sort_values(
+
+            "TOTAL",
+
+            ascending=False
+
+        )
+
+        .iloc[0]
+
+    )
 
 
     st.metric(
+
         "🏆 Líder",
+
         lider["Participantes"]
+
     )
 
 
@@ -228,10 +314,15 @@ st.divider()
 aba1, aba2, aba3, aba4 = st.tabs(
 
     [
-        "🏆 Classificação Geral",
+
+        "🏆 Classificação",
+
         "⚽ Jogos",
-        "🥇 Premiações",
+
+        "🥇 Premiação",
+
         "📜 Critérios"
+
     ]
 
 )
@@ -246,8 +337,11 @@ with aba1:
 
 
     st.subheader(
-        "🏆 Ranking Oficial"
+
+        "🏆 Ranking Geral"
+
     )
+
 
 
     ranking = ranking.sort_values(
@@ -257,6 +351,7 @@ with aba1:
         ascending=False
 
     )
+
 
 
     st.dataframe(
@@ -279,19 +374,34 @@ with aba2:
 
 
     st.subheader(
-        "⚽ Jogos Copa 2026"
-    )
 
-
-    st.dataframe(
-
-        jogos,
-
-        hide_index=True,
-
-        width="stretch"
+        "⚽ Jogos da Copa 2026"
 
     )
+
+
+    if jogos.empty:
+
+
+        st.warning(
+
+            "Jogos não encontrados."
+
+        )
+
+
+    else:
+
+
+        st.dataframe(
+
+            jogos,
+
+            hide_index=True,
+
+            width="stretch"
+
+        )
 
 
 
@@ -303,8 +413,11 @@ with aba3:
 
 
     st.subheader(
-        "🥇 Premiação"
+
+        "🥇 Premiação Oficial"
+
     )
+
 
 
     col1, col2, col3 = st.columns(3)
@@ -313,31 +426,47 @@ with aba3:
 
     with col1:
 
+
         st.metric(
-            "🥇 1º Lugar",
-            "Campeão Geral"
+
+            "🥇 Campeão",
+
+            "1º Geral"
+
         )
+
 
 
     with col2:
 
+
         st.metric(
-            "🥈 2º Lugar",
-            "Vice"
+
+            "🥈 Vice",
+
+            "2º Geral"
+
         )
+
 
 
     with col3:
 
+
         st.metric(
-            "🥉 3º Lugar",
-            "Terceiro"
+
+            "🥉 Terceiro",
+
+            "3º Geral"
+
         )
 
 
 
     st.info(
-        "Valores finais vinculados à arrecadação oficial do bolão."
+
+        "Premiação vinculada à arrecadação final do bolão."
+
     )
 
 
@@ -350,26 +479,38 @@ with aba4:
 
 
     st.subheader(
-        "📜 Critérios de Desempate"
+
+        "📜 Critérios Oficiais de Desempate"
+
     )
 
 
+
     st.markdown(
+
         """
-        ### Ordem oficial:
 
-        1️⃣ Maior pontuação total
+        ### Ordem aplicada:
 
-        2️⃣ Maior quantidade de placares exatos
 
-        3️⃣ Maior pontuação nos itens especiais
+        **1️⃣ Maior pontuação total**
 
-        4️⃣ Maior antecedência no envio do bolão
+
+        **2️⃣ Maior número de placares exatos**
+
+
+        **3️⃣ Maior pontuação nos critérios especiais**
+
+
+        **4️⃣ Maior antecedência no envio do bolão**
 
 
         ---
-        Critérios aplicados automaticamente pelo motor oficial.
+
+        Critérios serão aplicados automaticamente pelo motor oficial.
+
         """
+
     )
 
 
@@ -381,6 +522,9 @@ with aba4:
 st.divider()
 
 
+
 st.caption(
-    "🏆 Bolão Copa 2026 — Sistema automático Render + Google Sheets"
+
+    "🏆 Bolão Copa 2026 • Render + Google Sheets • Motor Oficial v5.5"
+
 )

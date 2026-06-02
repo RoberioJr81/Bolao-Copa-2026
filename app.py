@@ -1,14 +1,13 @@
 # ============================================================
-# APP BOLÃO COPA 2026
-# FIFA PREMIUM VISUAL v1.6
-# COMPATÍVEL COM MOTOR OFICIAL v6.2
+# 🏆 APP BOLÃO COPA 2026
+# FIFA PREMIUM VISUAL v1.7
+# COMPATÍVEL COM MOTOR OFICIAL v6.3
 # ============================================================
 
 import streamlit as st
 import pandas as pd
 import json
 import os
-
 
 # ============================================================
 # CONFIGURAÇÃO
@@ -20,7 +19,7 @@ st.set_page_config(
     layout="wide"
 )
 
-BASE_DIR = os.path.dirname(
+BASE = os.path.dirname(
     os.path.abspath(__file__)
 )
 
@@ -31,18 +30,12 @@ BASE_DIR = os.path.dirname(
 
 try:
 
-    from motor import executar_motor
-
-    with st.spinner(
-        "Atualizando dados oficiais..."
-    ):
-
-        executar_motor()
+    from motor import *
 
 except Exception as erro:
 
-    st.warning(
-        f"Motor não executado: {erro}"
+    st.error(
+        f"Erro ao executar motor: {erro}"
     )
 
 
@@ -50,73 +43,107 @@ except Exception as erro:
 # CARREGAR JSON
 # ============================================================
 
-def carregar(nome):
+def carregar_json(nome):
 
-    caminho=os.path.join(
-        BASE_DIR,
+    caminho = os.path.join(
+        BASE,
         nome
     )
 
-    if os.path.exists(caminho):
+    if not os.path.exists(caminho):
+        return pd.DataFrame()
 
-        with open(
-            caminho,
-            "r",
-            encoding="utf-8"
-        ) as f:
+    with open(
+        caminho,
+        "r",
+        encoding="utf-8"
+    ) as f:
 
-            return pd.DataFrame(
-                json.load(f)
-            )
-
-    return pd.DataFrame()
+        dados = json.load(f)
 
 
+    return pd.DataFrame(
+        dados
+    )
 
-ranking = carregar(
+
+ranking = carregar_json(
     "ranking_geral.json"
 )
 
-ranking_grupos = carregar(
-    "ranking_fase_grupos.json"
-)
-
-jogos = carregar(
+jogos = carregar_json(
     "jogos.json"
 )
 
-palpites = carregar(
+palpites_raw = os.path.join(
+    BASE,
     "matriz_palpites.json"
 )
 
 
+# ============================================================
+# CARREGAR MATRIZ PALPITES
+# ============================================================
+
+def carregar_matriz():
+
+    if not os.path.exists(
+        palpites_raw
+    ):
+
+        return pd.DataFrame()
+
+
+    with open(
+        palpites_raw,
+        "r",
+        encoding="utf-8"
+    ) as f:
+
+        matriz = json.load(f)
+
+
+    if len(matriz) < 2:
+
+        return pd.DataFrame()
+
+
+    cabecalho = matriz[0]
+
+    linhas = matriz[1:]
+
+
+    return pd.DataFrame(
+        linhas,
+        columns=cabecalho
+    )
+
+
+palpites = carregar_matriz()
+
 
 # ============================================================
-# VISUAL
+# CSS PREMIUM
 # ============================================================
 
 st.markdown(
 """
 <style>
 
-.titulo{
-text-align:center;
-font-size:44px;
-font-weight:900;
-color:#006b2e;
+h1,h2,h3 {
+    letter-spacing:2px;
 }
 
-.subtitulo{
-text-align:center;
-font-size:16px;
-color:#555;
+.titulo {
+    text-align:center;
+    color:#006b2e;
+    font-size:42px;
+    font-weight:900;
 }
 
-.podio{
-border-radius:15px;
-padding:20px;
-background:#f7f7f7;
-text-align:center;
+.subtitulo {
+    text-align:center;
+    color:#555;
 }
 
 </style>
@@ -125,33 +152,29 @@ unsafe_allow_html=True
 )
 
 
-
 # ============================================================
 # CABEÇALHO
 # ============================================================
 
 st.markdown(
 """
-<div class='titulo'>
+<div class="titulo">
 🏆 Bolão Copa do Mundo 2026
 </div>
 """,
 unsafe_allow_html=True
 )
 
-
 st.markdown(
 """
-<div class='subtitulo'>
-Sistema Oficial • FIFA Premium • Motor v6.2
+<div class="subtitulo">
+Sistema Oficial • FIFA Premium • Motor v6.3
 </div>
 """,
 unsafe_allow_html=True
 )
 
-
 st.divider()
-
 
 
 # ============================================================
@@ -161,7 +184,7 @@ st.divider()
 if ranking.empty:
 
     st.error(
-        "Ranking indisponível."
+        "Ranking ainda não disponível."
     )
 
     st.stop()
@@ -169,35 +192,30 @@ if ranking.empty:
 
 
 # ============================================================
-# PAINEL SUPERIOR
+# INDICADORES
 # ============================================================
 
 c1,c2,c3,c4 = st.columns(4)
-
 
 c1.metric(
     "Participantes",
     len(ranking)
 )
 
-
 c2.metric(
     "Jogos",
     len(jogos)
 )
-
 
 c3.metric(
     "Teto máximo",
     "1797 pontos"
 )
 
-
 c4.metric(
     "Líder",
     ranking.iloc[0]["Participantes"]
 )
-
 
 
 st.divider()
@@ -208,8 +226,7 @@ st.divider()
 # ABAS
 # ============================================================
 
-aba_inicio, aba_ranking, aba_premios, aba_jogos, aba_palpites, aba_regra = st.tabs(
-
+aba1,aba2,aba3,aba4,aba5,aba6 = st.tabs(
 [
 "🏠 Início",
 "🏆 Classificação",
@@ -218,7 +235,6 @@ aba_inicio, aba_ranking, aba_premios, aba_jogos, aba_palpites, aba_regra = st.ta
 "📋 Palpites",
 "📜 Regulamento"
 ]
-
 )
 
 
@@ -227,29 +243,25 @@ aba_inicio, aba_ranking, aba_premios, aba_jogos, aba_palpites, aba_regra = st.ta
 # INÍCIO
 # ============================================================
 
-with aba_inicio:
-
+with aba1:
 
     st.header(
-        "Sistema Oficial do Bolão"
+        "🏆 Sistema Oficial do Bolão"
     )
-
 
     st.success(
-        "Atualização automática pelo Google Sheets ativa."
+        "Motor de classificação automático ativo."
     )
-
 
     st.write(
         """
-        O ranking é atualizado conforme:
-        
-        1. Pontuação total  
-        2. Acerto do campeão  
-        3. Acerto do artilheiro  
-        4. Fase eliminatória  
-        5. Ordem oficial de envio
-        """
+Critérios oficiais de desempate:
+
+1. Acerto do Campeão  
+2. Acerto do Artilheiro  
+3. Maior pontuação na fase eliminatória  
+4. Maior antecedência no envio dos palpites
+"""
     )
 
 
@@ -258,41 +270,74 @@ with aba_inicio:
 # CLASSIFICAÇÃO
 # ============================================================
 
-with aba_ranking:
-
+with aba2:
 
     st.header(
         "🏆 Classificação Geral"
     )
 
 
+    tabela = ranking.copy()
+
+
+    ocultar = [
+
+        "ID",
+        "Data Envio",
+        "Enviou"
+
+    ]
+
+
+    tabela = tabela.drop(
+
+        columns=[
+
+            c for c in ocultar
+
+            if c in tabela.columns
+
+        ],
+
+        errors="ignore"
+
+    )
+
+
+    renomear = {
+
+        "Fase de Grupo":
+        "Item 4.1. Fase de Grupo",
+
+        "Eliminatórias":
+        "ITEM 4.3 e 5 - Confrontos Fase Eliminatórias",
+
+        "Campeão":
+        "ITEM 4.2. Passagem de fase, Campeão, Vice, 3º e 4º",
+
+        "Artilheiro":
+        "4.2. Artilheiro",
+
+        "TOTAL":
+        "Total"
+
+    }
+
+
+    tabela = tabela.rename(
+        columns=renomear
+    )
+
+
     st.dataframe(
 
-        ranking,
+        tabela,
 
         hide_index=True,
 
-        use_container_width=True
+        width="stretch"
 
     )
-
-
-    st.subheader(
-        "⚽ Ranking da Fase de Grupos"
-    )
-
-
-    if not ranking_grupos.empty:
-
-        st.dataframe(
-
-            ranking_grupos,
-
-            hide_index=True,
-
-            use_container_width=True
-
-        )
 
 
 
@@ -300,110 +345,54 @@ with aba_ranking:
 # PREMIAÇÃO
 # ============================================================
 
-with aba_premios:
-
+with aba3:
 
     st.header(
         "🏅 Premiação Oficial"
     )
 
 
-    st.subheader(
-        "🏆 Geral"
-    )
+    podium = ranking.head(3)
 
 
-    c1,c2,c3 = st.columns(3)
+    cols = st.columns(3)
 
 
-    top = ranking.head(3)
-
-
-    medalhas=[
-
-        "🥇 Campeão",
-
-        "🥈 Vice",
-
-        "🥉 Terceiro"
-
+    medalhas = [
+        "🥇 1º Lugar",
+        "🥈 2º Lugar",
+        "🥉 3º Lugar"
     ]
 
 
-    colunas=[
-        c1,
-        c2,
-        c3
-    ]
+    for i,col in enumerate(cols):
 
+        if i < len(podium):
 
-    for i in range(
-        min(3,len(top))
-    ):
+            with col:
 
-        with colunas[i]:
-
-            st.markdown(
-                f"### {medalhas[i]}"
-            )
-
-            st.metric(
-
-                top.iloc[i]["Participantes"],
-
-                str(
-                    int(top.iloc[i]["TOTAL"])
+                st.subheader(
+                    medalhas[i]
                 )
-                +
-                " pontos"
 
-            )
+                st.metric(
+
+                    podium.iloc[i]
+                    ["Participantes"],
+
+                    str(
+                        podium.iloc[i]
+                        ["TOTAL"]
+                    )
+                    +
+                    " pontos"
+
+                )
 
 
-
-    st.divider()
-
-
-    st.subheader(
-        "⚽ Fase de Grupos"
+    st.info(
+        "Premiação calculada conforme regulamento oficial."
     )
-
-
-    if not ranking_grupos.empty:
-
-
-        topg = ranking_grupos.head(3)
-
-
-        g1,g2,g3 = st.columns(3)
-
-
-        for i,col in enumerate(
-            [g1,g2,g3]
-        ):
-
-            if i < len(topg):
-
-                with col:
-
-                    st.markdown(
-                        f"### {medalhas[i]}"
-                    )
-
-
-                    st.metric(
-
-                        topg.iloc[i]["Participantes"],
-
-                        str(
-                            int(
-                                topg.iloc[i]["Fase de Grupo"]
-                            )
-                        )
-                        +
-                        " pontos"
-
-                    )
 
 
 
@@ -411,50 +400,50 @@ with aba_premios:
 # JOGOS
 # ============================================================
 
-with aba_jogos:
-
+with aba4:
 
     st.header(
         "⚽ Tabela Completa de Jogos"
     )
 
 
-    if not jogos.empty:
+    ordem = [
+
+        "Jogo",
+
+        "Data",
+
+        "Local",
+
+        "Seleção A",
+
+        "Placar A",
+
+        "Placar B",
+
+        "Seleção B"
+
+    ]
 
 
-        ordem=[
+    mostrar = [
 
-            "Jogo",
+        c for c in ordem
 
-            "Seleção A",
+        if c in jogos.columns
 
-            "Placar A",
-
-            "Placar B",
-
-            "Seleção B"
-
-        ]
+    ]
 
 
-        existentes=[
+    st.dataframe(
 
-            c for c in ordem
+        jogos[mostrar],
 
-            if c in jogos.columns
+        hide_index=True,
 
-        ]
+        width="stretch"
 
-
-        st.dataframe(
-
-            jogos[existentes],
-
-            hide_index=True,
-
-            use_container_width=True
-
-        )
+    )
 
 
 
@@ -462,29 +451,20 @@ with aba_jogos:
 # PALPITES
 # ============================================================
 
-with aba_palpites:
-
+with aba5:
 
     st.header(
         "📋 Mapa Geral de Palpites"
     )
 
 
-    st.caption(
-        "Placar Oficial seguido pelos participantes na ordem oficial."
-    )
-
-
     if palpites.empty:
 
-
         st.warning(
-            "Palpites ainda não disponíveis."
+            "Palpites indisponíveis."
         )
 
-
     else:
-
 
         st.dataframe(
 
@@ -492,7 +472,7 @@ with aba_palpites:
 
             hide_index=True,
 
-            use_container_width=True
+            width="stretch"
 
         )
 
@@ -502,8 +482,7 @@ with aba_palpites:
 # REGULAMENTO
 # ============================================================
 
-with aba_regra:
-
+with aba6:
 
     st.header(
         "📜 Regulamento Oficial"
@@ -512,37 +491,59 @@ with aba_regra:
 
     st.markdown(
 """
-
-### Pontuação dos jogos
+## Item 4.1 - Pontuação dos jogos
 
 🏆 **12 pontos**
-- placar exato
-
+- Placar exato
 
 ⭐ **8 pontos**
-- vencedor + gols de uma seleção
-
+- Resultado correto + gols de uma seleção
 
 ✔ **5 pontos**
-- vencedor correto
-
+- Resultado correto
 
 ➕ **2 pontos**
-- gols de uma seleção
+- Acerto de gols de uma seleção
 
 
 ---
 
-### Critérios de desempate
+## Item 4.2 - Premiações Extras
 
-1. Acerto do campeão
+🏆 Campeão da Copa: **25 pontos**
 
-2. Acerto do artilheiro
+🥈 Vice Campeão: **18 pontos**
 
-3. Pontuação fase eliminatória
+🥉 Terceiro Lugar: **12 pontos**
 
-4. Maior antecedência de envio
+🏅 Quarto Lugar: **10 pontos**
 
+⚽ Artilheiro: **20 pontos**
+
+
+---
+
+## Passagem de fase
+
+32 avos: **4 pontos**
+
+Oitavas: **8 pontos**
+
+Quartas: **12 pontos**
+
+Semifinal: **16 pontos**
+
+Final: **24 pontos**
+
+
+---
+
+## Critérios de desempate
+
+1. Campeão  
+2. Artilheiro  
+3. Fase eliminatória  
+4. Ordem de envio
 
 """
     )
@@ -555,7 +556,6 @@ with aba_regra:
 
 st.divider()
 
-
 st.caption(
-    "Bolão Copa 2026 • Motor v6.2 • FIFA Premium"
+    "🏆 Bolão Copa 2026 • FIFA Premium Visual v1.7 • Motor v6.3"
 )

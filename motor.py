@@ -1,12 +1,11 @@
 # ============================================================
 # MOTOR BOLÃO COPA 2026
 # PRODUÇÃO — RENDER
-# MOTOR OFICIAL v4.0
+# MOTOR OFICIAL v4.1
 # ============================================================
 
 import pandas as pd
 import os
-import json
 import traceback
 from urllib.parse import quote
 
@@ -76,15 +75,10 @@ def exportar_json(nome, df):
 
 
     df.to_json(
-
         caminho,
-
         orient="records",
-
         force_ascii=False,
-
         indent=4
-
     )
 
 
@@ -103,13 +97,13 @@ def preparar_jogos(df):
 
 
     base = df[
-
         df["Partidas"].notna()
-
     ].copy()
 
 
-    base = base.reset_index(drop=True)
+    base = base.reset_index(
+        drop=True
+    )
 
 
     jogos = pd.DataFrame()
@@ -150,13 +144,33 @@ def preparar_palpites(df):
     lista = []
 
 
+    print(
+        "📋 Colunas palpites:",
+        list(df.columns)
+    )
+
+
     for _, linha in df.iterrows():
 
 
-        participante = linha["Participantes"]
+        if "Participantes" in df.columns:
+
+            participante = linha["Participantes"]
+
+
+        elif "participante" in df.columns:
+
+            participante = linha["participante"]
+
+
+        else:
+
+            participante = linha.iloc[0]
+
 
 
         numero_jogo = 1
+
 
 
         for valor in linha.values:
@@ -177,6 +191,7 @@ def preparar_palpites(df):
 
 
                 try:
+
 
                     a,b = texto.split("x")
 
@@ -205,7 +220,9 @@ def preparar_palpites(df):
                     numero_jogo += 1
 
 
+
                 except:
+
 
                     pass
 
@@ -216,7 +233,7 @@ def preparar_palpites(df):
 
 
 # ============================================================
-# ITEM 4.1 / PLACARES
+# ITEM 4.1
 # ============================================================
 
 def calcular_placares(jogos, palpites):
@@ -229,9 +246,7 @@ def calcular_placares(jogos, palpites):
 
 
         jogo = jogos[
-
             jogos["Jogo"] == p["Jogo"]
-
         ]
 
 
@@ -249,46 +264,36 @@ def calcular_placares(jogos, palpites):
         try:
 
 
-            oficial_a = int(jogo["Gols A"])
+            oa = int(jogo["Gols A"])
 
-            oficial_b = int(jogo["Gols B"])
+            ob = int(jogo["Gols B"])
 
 
 
-            if (
-
-                oficial_a == p["A"]
-
-                and
-
-                oficial_b == p["B"]
-
-            ):
-
+            if oa == p["A"] and ob == p["B"]:
 
                 pontos = 12
 
 
             elif (
 
-                (oficial_a-oficial_b > 0 and p["A"]-p["B"] > 0)
+                (oa-ob > 0 and p["A"]-p["B"] > 0)
 
                 or
 
-                (oficial_a-oficial_b < 0 and p["A"]-p["B"] < 0)
+                (oa-ob < 0 and p["A"]-p["B"] < 0)
 
                 or
 
-                (oficial_a-oficial_b == 0 and p["A"]-p["B"] == 0)
+                (oa-ob == 0 and p["A"]-p["B"] == 0)
 
             ):
-
 
                 pontos = 5
 
 
-        except:
 
+        except:
 
             pontos = 0
 
@@ -317,17 +322,14 @@ def calcular_placares(jogos, palpites):
 # RANKING
 # ============================================================
 
-def gerar_ranking(pontos, participantes):
+def gerar_ranking(pontos):
 
 
     ranking = (
 
         pontos.groupby(
-
             "Participante",
-
             as_index=False
-
         )
 
         .sum()
@@ -337,37 +339,26 @@ def gerar_ranking(pontos, participantes):
 
     ranking["ITEM 4.3. e 5 - Confrontos Fase Eliminatórias"] = 0
 
-
     ranking["ITEM 4.2. Passagem de fase, Campeão, Vice, 3º e 4º"] = 0
-
 
     ranking["4.2. Artilheiro"] = 0
 
 
-    ranking["TOTAL"] = (
-
-        ranking["ITEM 4.1. Fase de Grupo"]
-
-    )
+    ranking["TOTAL"] = ranking[
+        "ITEM 4.1. Fase de Grupo"
+    ]
 
 
     ranking = ranking.sort_values(
-
         "TOTAL",
-
         ascending=False
-
     )
 
 
     ranking.insert(
-
         0,
-
         "Posição",
-
         range(1,len(ranking)+1)
-
     )
 
 
@@ -386,17 +377,21 @@ def auditar(ranking, jogos, palpites):
     print("🔒 AUDITOR PRODUÇÃO")
 
 
-    assert len(jogos) == 104, "Quantidade de jogos incorreta"
+    assert len(jogos) == 104
 
 
-    assert len(palpites) == 3120, "Quantidade de palpites incorreta"
+    assert len(palpites) == 3120
 
 
     assert ranking["TOTAL"].max() <= TETO_MAXIMO
 
 
-    print("✅ Jogos: 104")
-    print("✅ Palpites: 3120")
+    print("✅ Jogos:", len(jogos))
+
+    print("✅ Palpites:", len(palpites))
+
+    print("✅ Ranking:", len(ranking))
+
     print("✅ Teto respeitado")
 
 
@@ -425,63 +420,42 @@ def executar_motor():
 
 
         jogos = preparar_jogos(
-
             dados["jogos"]
-
         )
 
 
         palpites = preparar_palpites(
-
             dados["palpites"]
-
         )
 
 
         pontos = calcular_placares(
-
             jogos,
-
             palpites
-
         )
 
 
         ranking = gerar_ranking(
-
-            pontos,
-
-            dados["participantes"]
-
+            pontos
         )
 
 
         auditar(
-
             ranking,
-
             jogos,
-
             palpites
-
         )
 
 
         exportar_json(
-
             "ranking_geral.json",
-
             ranking
-
         )
 
 
         exportar_json(
-
             "jogos.json",
-
             jogos
-
         )
 
 
@@ -499,7 +473,6 @@ def executar_motor():
         print("❌ ERRO NO MOTOR")
 
         print(erro)
-
 
         traceback.print_exc()
 

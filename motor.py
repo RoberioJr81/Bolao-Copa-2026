@@ -6,11 +6,10 @@ from google.oauth2.service_account import Credentials
 
 
 # ======================================================
-# CONFIGURAÇÕES
+# CONFIGURAÇÃO
 # ======================================================
 
 SHEET_ID = "1cDAujojgWNg7SAoR8FQ9MReSB0FTgJvbdYGMjnDVt04"
-
 COTA = 200
 
 
@@ -32,40 +31,32 @@ def conectar_google():
         ]
     )
 
-    return gspread.authorize(
-        creds
-    ).open_by_key(
-        SHEET_ID
-    )
+    return gspread.authorize(creds).open_by_key(SHEET_ID)
+
 
 
 # ======================================================
-# FUNÇÕES AUXILIARES
+# UTILITÁRIOS
 # ======================================================
 
 def salvar_json(nome, dados):
 
-    with open(
-        nome,
-        "w",
-        encoding="utf-8"
-    ) as arquivo:
+    with open(nome, "w", encoding="utf-8") as f:
 
         json.dump(
             dados,
-            arquivo,
+            f,
             ensure_ascii=False,
             indent=4,
             default=str
         )
 
-    print(f"✅ {nome}")
+    print(f"✅ {nome} salvo")
 
 
 def tratar_data(valor):
 
     try:
-
         if str(valor).strip() == "":
             return pd.Timestamp.max
 
@@ -79,16 +70,19 @@ def tratar_data(valor):
         return pd.Timestamp.max
 
 
+
 # ======================================================
 # MOTOR
 # ======================================================
 
 def rodar_motor():
 
-    print(
-        "🏆 Motor v8.3.1 iniciado"
-    )
+    print("🏆 Motor v8.3.2 iniciado")
 
+
+    # --------------------------------------------------
+    # LEITURA GOOGLE
+    # --------------------------------------------------
 
     sheet = conectar_google()
 
@@ -114,13 +108,12 @@ def rodar_motor():
     )
 
 
+
     # ==================================================
     # PARTICIPANTES
     # ==================================================
 
-    participantes[
-        "Efetivado"
-    ] = participantes[
+    participantes["Efetivado"] = participantes[
         "Data e hora do Palpite"
     ].apply(
         lambda x:
@@ -143,8 +136,9 @@ def rodar_motor():
     )
 
 
+
     # ==================================================
-    # JOGOS OFICIAIS TRATADOS
+    # JOGOS
     # ==================================================
 
     jogos = []
@@ -152,62 +146,72 @@ def rodar_motor():
 
     for _, linha in jogos_bruto.iterrows():
 
-        selecao_a = linha.get(
-            "Partidas"
-        )
+        try:
 
-        selecao_b = linha.get(
-            "Unnamed: 9"
-        )
+            selecao_a = linha.get(
+                "Partidas"
+            )
 
-
-        if (
-            pd.isna(selecao_a)
-            or pd.isna(selecao_b)
-        ):
-            continue
+            selecao_b = linha.get(
+                "Unnamed: 9"
+            )
 
 
-        jogos.append(
+            if (
+                pd.isna(selecao_a)
+                or pd.isna(selecao_b)
+                or str(selecao_a).strip() == ""
+            ):
+                continue
 
-            {
 
-                "ID":
-                    len(jogos)+1,
+            jogos.append(
 
-                "Data":
-                    linha.get(
-                        "Primeira fase GRUPO A Dia"
-                    ),
+                {
 
-                "Sede":
-                    linha.get(
-                        "Sede"
-                    ),
+                    "Jogo":
+                        len(jogos)+1,
 
-                "Seleção A":
-                    selecao_a,
+                    "Data":
+                        linha.get(
+                            "Primeira fase GRUPO A Dia"
+                        ),
 
-                "Placar":
-                    f"{linha.get('Unnamed: 5','')}x{linha.get('Unnamed: 7','')}",
+                    "Sede":
+                        linha.get(
+                            "Sede"
+                        ),
 
-                "Seleção B":
-                    selecao_b,
+                    "Seleção A":
+                        selecao_a,
 
-                "Status":
-                    linha.get(
-                        "Status"
-                    )
+                    "Placar":
+                        f"{linha.get('Unnamed: 5','')}x{linha.get('Unnamed: 7','')}",
 
-            }
+                    "Seleção B":
+                        selecao_b,
 
-        )
+                    "Status":
+                        linha.get(
+                            "Status"
+                        )
+
+                }
+
+            )
+
+
+        except:
+
+            pass
+
 
 
     salvar_json(
         "jogos.json",
         jogos
     )
+
 
 
     # ==================================================
@@ -227,29 +231,38 @@ def rodar_motor():
                 "Participante":
                     pessoa["Participantes"],
 
+
                 "ITEM 4.1. Fase de Grupo":
                     0,
+
 
                 "ITEM 4.3. e 5 - Confrontos Fase Eliminatórias":
                     0,
 
+
                 "ITEM 4.2. Passagem de fase, Campeão, Vice, 3º e 4º":
                     0,
+
 
                 "4.2. Artilheiro":
                     0,
 
+
                 "TOTAL":
                     0,
+
 
                 "Acertou_Campeao":
                     0,
 
+
                 "Acertou_Artilheiro":
                     0,
 
+
                 "Pontos_Eliminatorias":
                     0,
+
 
                 "_Envio":
                     tratar_data(
@@ -263,69 +276,60 @@ def rodar_motor():
         )
 
 
-    ranking = pd.DataFrame(
-        ranking
-    )
+    ranking = pd.DataFrame(ranking)
 
 
-    ranking = ranking.sort_values(
+    if not ranking.empty:
 
-        by=[
+        ranking = ranking.sort_values(
 
-            "TOTAL",
+            by=[
 
-            "Acertou_Campeao",
+                "TOTAL",
+                "Acertou_Campeao",
+                "Acertou_Artilheiro",
+                "Pontos_Eliminatorias",
+                "_Envio"
 
-            "Acertou_Artilheiro",
+            ],
 
-            "Pontos_Eliminatorias",
+            ascending=[
 
-            "_Envio"
+                False,
+                False,
+                False,
+                False,
+                True
 
-        ],
+            ]
 
-        ascending=[
-
-            False,
-
-            False,
-
-            False,
-
-            False,
-
-            True
-
-        ]
-
-    )
-
-
-    ranking.insert(
-        0,
-        "posição",
-        range(
-            1,
-            len(ranking)+1
         )
-    )
+
+
+        ranking.insert(
+            0,
+            "posição",
+            range(
+                1,
+                len(ranking)+1
+            )
+        )
+
 
 
     ranking_exportar = ranking.drop(
 
         columns=[
-
             "_Envio",
-
             "Acertou_Campeao",
-
             "Acertou_Artilheiro",
-
             "Pontos_Eliminatorias"
+        ],
 
-        ]
+        errors="ignore"
 
     )
+
 
 
     salvar_json(
@@ -344,8 +348,9 @@ def rodar_motor():
     )
 
 
+
     # ==================================================
-    # PALPITES PREMIUM
+    # PALPITES
     # ==================================================
 
     mapa = []
@@ -362,19 +367,15 @@ def rodar_motor():
     for jogo in jogos:
 
         oficial[
-
             jogo["Seleção A"]
             +
             " x "
             +
             jogo["Seleção B"]
-
         ] = jogo["Placar"]
 
 
-    mapa.append(
-        oficial
-    )
+    mapa.append(oficial)
 
 
     for _, pessoa in efetivos.iterrows():
@@ -390,19 +391,16 @@ def rodar_motor():
         for jogo in jogos:
 
             linha[
-
                 jogo["Seleção A"]
                 +
                 " x "
                 +
                 jogo["Seleção B"]
-
             ] = ""
 
 
-        mapa.append(
-            linha
-        )
+        mapa.append(linha)
+
 
 
     salvar_json(
@@ -411,15 +409,12 @@ def rodar_motor():
     )
 
 
+
     # ==================================================
     # PREMIAÇÃO
     # ==================================================
 
-    total = (
-        len(participantes)
-        *
-        COTA
-    )
+    total = len(participantes) * COTA
 
 
     podio = []
@@ -457,6 +452,7 @@ def rodar_motor():
         )
 
 
+
     salvar_json(
 
         "premiacao.json",
@@ -491,6 +487,7 @@ def rodar_motor():
     )
 
 
+
     # ==================================================
     # ESTATÍSTICAS
     # ==================================================
@@ -514,12 +511,17 @@ def rodar_motor():
                 float(total),
 
             "Lider":
-                ranking_exportar.iloc[0]
-                ["Participante"]
+                str(
+                    ranking_exportar.iloc[0]
+                    ["Participante"]
+                )
+                if not ranking_exportar.empty
+                else "-"
 
         }
 
     )
+
 
 
     # ==================================================
@@ -533,7 +535,7 @@ def rodar_motor():
         {
 
             "Motor":
-                "v8.3.1",
+                "v8.3.2",
 
             "Status":
                 "OK",
@@ -561,9 +563,8 @@ def rodar_motor():
     )
 
 
-    print(
-        "🏆 Motor finalizado com sucesso"
-    )
+    print("🏆 Motor v8.3.2 finalizado")
+
 
 
 # ======================================================

@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
 import json
+import os
 
 
 # ======================================================
-# CONFIGURAÇÃO DA PÁGINA
+# CONFIGURAÇÃO
 # ======================================================
 
 st.set_page_config(
@@ -15,11 +16,10 @@ st.set_page_config(
 
 
 # ======================================================
-# EXECUTA MOTOR
+# EXECUTA MOTOR COM SEGURANÇA
 # ======================================================
 
 try:
-
     from motor import rodar_motor
 
     rodar_motor()
@@ -30,17 +30,21 @@ except Exception as erro:
         "⚠️ Motor não executado. Utilizando último processamento disponível."
     )
 
-    st.text(str(erro))
-
+    st.caption(str(erro))
 
 
 # ======================================================
-# LEITURA SEGURA JSON
+# LEITURA SEGURA
 # ======================================================
 
 def carregar_json(nome, tipo):
 
     try:
+
+        if not os.path.exists(nome):
+
+            return {} if tipo == dict else []
+
 
         with open(
             nome,
@@ -48,81 +52,150 @@ def carregar_json(nome, tipo):
             encoding="utf-8"
         ) as arquivo:
 
-            dados = json.load(
-                arquivo
-            )
+            dados = json.load(arquivo)
 
 
-        if isinstance(
-            dados,
-            tipo
-        ):
+        if isinstance(dados, tipo):
 
             return dados
 
 
-        return (
-            {}
-            if tipo == dict
-            else []
-        )
+        return {} if tipo == dict else []
 
 
-    except:
+    except Exception:
 
-        return (
-            {}
-            if tipo == dict
-            else []
-        )
+        return {} if tipo == dict else []
 
 
 
 # ======================================================
-# CARREGAMENTO DOS JSONs
+# CARREGAMENTO
 # ======================================================
-
 
 ranking = carregar_json(
     "ranking_geral.json",
     list
 )
 
-
 jogos = carregar_json(
     "jogos.json",
     list
 )
-
 
 palpites = carregar_json(
     "palpites.json",
     list
 )
 
-
 participantes = carregar_json(
     "participantes.json",
     list
 )
-
 
 estatisticas = carregar_json(
     "estatisticas_bolao.json",
     dict
 )
 
-
 premiacao = carregar_json(
     "premiacao.json",
     dict
 )
 
-
 auditoria = carregar_json(
     "auditoria.json",
     dict
 )
+
+
+
+# ======================================================
+# FUNÇÕES VISUAIS
+# ======================================================
+
+def tabela_limpa(dados):
+
+    df = pd.DataFrame(dados)
+
+    if df.empty:
+
+        return df
+
+
+    df = df.dropna(
+        axis=1,
+        how="all"
+    )
+
+
+    df = df.dropna(
+        axis=0,
+        how="all"
+    )
+
+
+    return df
+
+
+
+def gerar_podio():
+
+    df = pd.DataFrame(ranking)
+
+
+    if df.empty:
+
+        return pd.DataFrame()
+
+
+    coluna_pontos = None
+
+
+    for c in [
+
+        "TOTAL",
+
+        "Total",
+
+        "Pontuação"
+
+    ]:
+
+        if c in df.columns:
+
+            coluna_pontos = c
+
+
+    if coluna_pontos is None:
+
+        return pd.DataFrame()
+
+
+    premios = [
+        "🥇",
+        "🥈",
+        "🥉"
+    ]
+
+
+    podio = df.head(3).copy()
+
+
+    podio.insert(
+        0,
+        "Medalha",
+        premios[:len(podio)]
+    )
+
+
+    return podio[
+        [
+            "Medalha",
+            "Participante",
+            coluna_pontos
+        ]
+    ]
 
 
 
@@ -142,45 +215,52 @@ st.caption(
 
 
 
-c1,c2,c3,c4 = st.columns(
-    4
-)
+c1, c2, c3, c4 = st.columns(4)
 
 
 
 c1.metric(
+
     "👥 Participantes",
+
     estatisticas.get(
         "Participantes",
         0
     )
+
 )
 
 
 
 c2.metric(
+
     "⚽ Jogos",
-    estatisticas.get(
-        "Jogos",
-        "0/104"
-    )
+
+    f"0/{estatisticas.get('Jogos',0)}"
+
 )
 
 
 
 c3.metric(
+
     "💰 Arrecadado",
+
     f"R$ {estatisticas.get('Arrecadado',0):,.2f}"
+
 )
 
 
 
 c4.metric(
+
     "🏆 Líder",
+
     estatisticas.get(
         "Lider",
         "-"
     )
+
 )
 
 
@@ -226,7 +306,7 @@ with aba1:
 
 
     st.header(
-        "🏆 Classificação Geral"
+        "🏆 Ranking Geral"
     )
 
 
@@ -235,19 +315,21 @@ with aba1:
     )
 
 
-    if ranking:
+    df = pd.DataFrame(ranking)
+
+
+    if not df.empty:
 
         st.dataframe(
-            pd.DataFrame(
-                ranking
-            ),
+            df,
             width="stretch"
         )
+
 
     else:
 
         st.info(
-            "Ranking aguardando dados."
+            "Ranking aguardando processamento."
         )
 
 
@@ -265,23 +347,21 @@ with aba2:
     )
 
 
-    if jogos:
+    df = tabela_limpa(jogos)
+
+
+    if not df.empty:
 
         st.dataframe(
-
-            pd.DataFrame(
-                jogos
-            ),
-
+            df,
             width="stretch"
-
         )
 
 
     else:
 
         st.warning(
-            "Nenhum jogo encontrado."
+            "Jogos não encontrados."
         )
 
 
@@ -299,25 +379,21 @@ with aba3:
     )
 
 
-    if palpites:
+    df = tabela_limpa(palpites)
 
+
+    if not df.empty:
 
         st.dataframe(
-
-            pd.DataFrame(
-                palpites
-            ),
-
+            df,
             width="stretch"
-
         )
 
 
     else:
 
-
         st.info(
-            "Palpites ainda não carregados."
+            "Nenhum palpite encontrado."
         )
 
 
@@ -336,22 +412,12 @@ with aba4:
 
 
     valores = premiacao.get(
-
         "Valores Arrecadados",
-
         {}
-
     )
 
 
-    st.subheader(
-        "💰 Valores Arrecadados"
-    )
-
-
-    p1,p2,p3 = st.columns(
-        3
-    )
+    p1, p2, p3 = st.columns(3)
 
 
     p1.metric(
@@ -392,45 +458,18 @@ with aba4:
     )
 
 
-    if premiacao.get(
-        "Podio Geral"
-    ):
+    podio = gerar_podio()
 
 
-        st.table(
+    if not podio.empty:
 
-            pd.DataFrame(
-
-                premiacao[
-                    "Podio Geral"
-                ]
-
-            )
-
-        )
+        st.table(podio)
 
 
+    else:
 
-    st.subheader(
-        "🥇 Pódio Fase de Grupo"
-    )
-
-
-    if premiacao.get(
-        "Podio Grupo"
-    ):
-
-
-        st.table(
-
-            pd.DataFrame(
-
-                premiacao[
-                    "Podio Grupo"
-                ]
-
-            )
-
+        st.info(
+            "Pódio aguardando ranking."
         )
 
 
@@ -448,22 +487,16 @@ with aba5:
     )
 
 
-    st.caption(
-        "Todos os inscritos. O ranking considera apenas participantes efetivados."
+    df = pd.DataFrame(
+        participantes
     )
 
 
-    if participantes:
-
+    if not df.empty:
 
         st.dataframe(
-
-            pd.DataFrame(
-                participantes
-            ),
-
+            df,
             width="stretch"
-
         )
 
 
@@ -477,7 +510,7 @@ with aba6:
 
 
     st.header(
-        "📜 Regulamento"
+        "📜 Regulamento Oficial"
     )
 
 
@@ -555,56 +588,30 @@ with aba7:
     )
 
 
-    a1,a2,a3,a4 = st.columns(
-        4
-    )
+    a1, a2, a3, a4 = st.columns(4)
 
 
     a1.metric(
-
         "Participantes",
-
-        auditoria.get(
-            "Participantes",
-            0
-        )
-
+        auditoria.get("Participantes",0)
     )
 
 
     a2.metric(
-
         "Efetivados",
-
-        auditoria.get(
-            "Efetivados",
-            0
-        )
-
+        auditoria.get("Efetivados",0)
     )
 
 
     a3.metric(
-
         "Jogos",
-
-        auditoria.get(
-            "Jogos",
-            0
-        )
-
+        auditoria.get("Jogos",0)
     )
 
 
     a4.metric(
-
         "Ranking",
-
-        auditoria.get(
-            "Ranking",
-            0
-        )
-
+        auditoria.get("Ranking",0)
     )
 
 
@@ -614,9 +621,13 @@ with aba7:
 
 
 
+# ======================================================
+# RODAPÉ
+# ======================================================
+
 st.divider()
 
 
 st.caption(
-    "🏆 Bolão Copa 2026 • Motor Oficial v8.3.2 • FIFA Premium Visual v4.3"
+    "🏆 Bolão Copa 2026 • Motor Oficial v9.0 ESTÁVEL • FIFA Premium Visual v5.0"
 )
